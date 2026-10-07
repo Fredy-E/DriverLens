@@ -1,0 +1,28 @@
+name: verify
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  verify-windows-arm64:
+    runs-on: windows-11-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Host architecture (evidence)
+        shell: pwsh
+        run: |
+          node --version
+          [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
+
+      - name: Collector fixture tests (PowerShell 7)
+        shell: pwsh
+        run: pwsh -NoProfile -File ./Test-Collector.ps1 -FixtureDirectory ./test-fixtures
+
+      - name: Node syntax checks
+        shell: pwsh
+        run: |
+          node --check server.cjs
+          node --check app.js
