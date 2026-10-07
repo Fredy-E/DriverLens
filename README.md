@@ -16,13 +16,19 @@ DriverLens identifies device VID/PID, driver metadata, INF architecture targets,
 
 ## Run
 
-Use Windows, Node.js 22 or newer, and PowerShell 7 on PATH:
+**Windows — one click.** Double-click **`Start-DriverLens.cmd`**. It starts the local server (or reuses a running one) and opens the UI in your browser.
+
+Requirements: [Node.js 22+](https://nodejs.org) and [PowerShell 7](https://aka.ms/powershell) on PATH.
+
+**Manually:**
 
 ```powershell
 node server.cjs
 ```
 
-Open **http://127.0.0.1:8781** and click **Scan this PC**. No npm install is needed. The collector uses PowerShell and CIM; it does not change driver or system settings. It writes one local JSON report beside the application. If PowerShell 7 is installed outside PATH, set `DRIVERLENS_POWERSHELL` to its executable before starting the server. The tool does not bypass execution policy.
+Then open **http://127.0.0.1:8781** and click **Scan this PC**. No npm install is needed. The collector uses PowerShell and CIM; it does not change driver or system settings. It writes one local JSON report beside the application. If PowerShell 7 is installed outside PATH, set `DRIVERLENS_POWERSHELL` to its executable before starting the server. The tool does not bypass execution policy.
+
+> **Use the server address, not the file.** Open **http://127.0.0.1:8781** — not `index.html` directly. A page opened from disk cannot reach the server, so **Scan this PC** and **Load sample** cannot work there. Use `127.0.0.1` exactly; `localhost` is rejected by design.
 
 Alternatively, collect a report yourself:
 
@@ -31,6 +37,12 @@ pwsh -NoProfile -File .\Collect-DriverLens.ps1 -OutputPath .\driver-report.json
 ```
 
 Then open `index.html` and select the report using **Open report**. **Load sample** needs the local server; the bundled sample is explicitly fictional.
+
+## Troubleshooting
+
+- **"Scan failed: Failed to fetch" / "Cannot reach the local server"** — the local server isn't running, or the page was opened from disk. Double-click `Start-DriverLens.cmd` (or run `node server.cjs` in this folder) and use **http://127.0.0.1:8781**.
+- **"Inventory failed…"** — PowerShell 7 is missing or blocked: install it, or set `DRIVERLENS_POWERSHELL` to the full path of `pwsh.exe`.
+- **"Use the local 127.0.0.1 address."** — replace `localhost` in the URL with `127.0.0.1`.
 
 ## Evidence limits
 
