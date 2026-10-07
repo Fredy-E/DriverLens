@@ -1,8 +1,5 @@
-<h1 align="center">DriverLens</h1>
-
 <p align="center">
-  <strong>A read-only Windows device and driver inventory with a local web interface.</strong><br>
-  VID/PID · driver metadata · INF architecture targets · kernel PE machine type — everything stays on your machine.
+  <img src="assets/banner.png" alt="DriverLens - a read-only Windows device and driver inventory (x86, x64, ARM64)" width="100%">
 </p>
 
 <p align="center">
