@@ -28,7 +28,7 @@ node server.cjs
 
 Then open **http://127.0.0.1:8781** and click **Scan this PC**. No npm install is needed. The collector uses PowerShell and CIM; it does not change driver or system settings. It writes one local JSON report beside the application. If PowerShell 7 is installed outside PATH, set `DRIVERLENS_POWERSHELL` to its executable before starting the server. The tool does not bypass execution policy.
 
-> **Use the server address, not the file.** Open **http://127.0.0.1:8781** — not `index.html` directly. A page opened from disk cannot reach the server, so **Scan this PC** and **Load sample** cannot work there. Use `127.0.0.1` exactly; `localhost` is rejected by design.
+> **Opened from disk? It still works — it auto-connects.** Browser pages can't start local programs (by design), so the helper must be running: double-click `Start-DriverLens.cmd`. A page opened from disk waits for the helper and connects itself automatically the moment it is up. Use `127.0.0.1`, not `localhost` (rejected by design).
 
 Alternatively, collect a report yourself:
 
@@ -40,7 +40,7 @@ Then open `index.html` and select the report using **Open report**. **Load sampl
 
 ## Troubleshooting
 
-- **"Scan failed: Failed to fetch" / "Cannot reach the local server"** — the local server isn't running, or the page was opened from disk. Double-click `Start-DriverLens.cmd` (or run `node server.cjs` in this folder) and use **http://127.0.0.1:8781**.
+- **"Cannot reach the local helper"** — the helper isn't running yet. Double-click `Start-DriverLens.cmd` in this folder (or run `node server.cjs`); a page opened from disk connects automatically within ~2 seconds.
 - **"Inventory failed…"** — PowerShell 7 is missing or blocked: install it, or set `DRIVERLENS_POWERSHELL` to the full path of `pwsh.exe`.
 - **"Use the local 127.0.0.1 address."** — replace `localhost` in the URL with `127.0.0.1`.
 

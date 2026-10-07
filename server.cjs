@@ -25,6 +25,7 @@ const server = http.createServer((req,res) => {
     return;
   }
   if (req.method !== 'GET') return send(res,405,JSON.stringify({error:'Method not allowed.'}));
+  if (url.pathname === '/ping') { const pixel = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7','base64'); res.writeHead(200,{'Content-Type':'image/gif','Cache-Control':'no-store','Content-Length':pixel.length}); return res.end(pixel); }
   if (url.pathname === '/report') return fs.readFile(reportPath,(error,data)=>error?send(res,404,JSON.stringify({error:'No local scan saved yet.'})):send(res,200,data));
   const file = files.get(url.pathname);
   if (!file) return send(res,404,JSON.stringify({error:'Not found.'}));
