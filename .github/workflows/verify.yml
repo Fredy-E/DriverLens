@@ -11,11 +11,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Host architecture (evidence)
+      - name: Host architecture and Node.js version (require 22+)
         shell: pwsh
         run: |
-          node --version
           [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
+          node --version
+          node -e "if (Number(process.versions.node.split('.')[0]) < 22) { throw 'Node.js 22+ is required; found ' + process.versions.node }"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
 
       - name: Collector fixture tests (PowerShell 7)
         shell: pwsh
@@ -25,4 +27,29 @@ jobs:
         shell: pwsh
         run: |
           node --check server.cjs
+          if ($LASTEXITCODE -ne 0) { exit 1 }
           node --check app.js
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Install dev dependencies (Playwright, dev-only; no browsers downloaded here)
+        shell: pwsh
+        run: npm ci --no-fund --no-audit
+
+      - name: Launcher invariants (Node)
+        shell: pwsh
+        run: node tests/launcher.test.cjs
+
+      - name: Server integration tests (Node; spawned servers, synthetic collectors only)
+        shell: pwsh
+        run: node tests/integration.test.cjs
+
+      - name: Install Playwright bundled Chromium (x64 build under Windows ARM64)
+        shell: pwsh
+        run: npx playwright install chromium
+
+      - name: Browser integration test (file:// auto-connect + synthetic report import)
+        shell: pwsh
+        env:
+          DRIVERLENS_BROWSER: chromium
+          DRIVERLENS_REQUIRE_BROWSER: '1'
+        run: node tests/browser.test.cjs
