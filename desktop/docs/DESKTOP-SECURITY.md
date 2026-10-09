@@ -81,9 +81,9 @@ The `export_html_report` flow writes one self-contained HTML document built by t
 ## Evidence
 
 - `desktop/src-tauri/tests/ipc_boundary.rs` — 14 integration tests through the real invoke path (ACL resolution included).
-- Rust unit tests — 89 (collector pipeline, report contract, scan lifecycle, USB Device Notebook store + scan-path recording, portable HTML export; synthetic only).
+- Rust unit tests — 92 (collector pipeline, report contract, scan lifecycle, USB Device Notebook store + scan-path recording, portable HTML export; synthetic only).
 - Vitest — 20 files / 211 tests (report contract, scan lifecycle UI, notebook adapter + view, redaction + HTML report builder + export UI).
-- Native E2E — 12/12 cases, including the unauthorized-IPC denial and the console-clean check.
+- Native E2E — 15/15 cases (v0.2.0 suite: the scan lifecycle, import/export, HTML-report redaction, and USB Device Notebook flows), including the unauthorized-IPC denial and the console-clean check.
 - Bundle/static checks — 7, including CSP strictness, the capability set, and the no-network scan.
 - Release-binary proof — `cargo tree` (no wdio crate) and a byte-level scan of the shipped exe: zero `wdio` / `webdriver` / `e2e_harness` / `DRIVERLENS_E2E_*` strings.
 - Full record — [DESKTOP-VERIFICATION.md](DESKTOP-VERIFICATION.md) (Task 14: battery PASS, artifact hashes, clean-machine matrix marked UNVERIFIED) plus the evidence logs in the development workspace.

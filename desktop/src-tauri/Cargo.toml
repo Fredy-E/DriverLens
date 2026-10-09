@@ -1,6 +1,6 @@
 [package]
 name = "driverlens-desktop"
-version = "0.1.0"
+version = "0.2.0"
 description = "DriverLens desktop edition - Tauri shell for the read-only device and driver inventory."
 edition = "2021"
 

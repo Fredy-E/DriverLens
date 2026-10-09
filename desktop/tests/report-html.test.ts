@@ -60,7 +60,7 @@ describe("buildReportHtml — required sections", () => {
   it("renders header, system info, summary stats, device table and the closing honesty line", () => {
     const html = buildReportHtml(LOCAL_REPORT);
     expect(html).toContain("<h1>DriverLens report</h1>");
-    expect(html).toContain("DriverLens 0.1.0");
+    expect(html).toContain("DriverLens 0.2.0");
     expect(html).toContain("Generated: 2026-10-08T00:00:00Z");
     // System info.
     expect(html).toContain("Test Windows");

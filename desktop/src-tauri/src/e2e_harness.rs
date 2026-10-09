@@ -64,6 +64,12 @@ pub const SAVE_PATH_ENV: &str = "DRIVERLENS_E2E_SAVE_PATH";
 pub const HTML_PATH_ENV: &str = "DRIVERLENS_E2E_HTML_PATH";
 /// Scan-deadline override environment variable (milliseconds).
 pub const TIMEOUT_MS_ENV: &str = "DRIVERLENS_E2E_TIMEOUT_MS";
+/// E2E-only notebook store directory override environment variable.
+///
+/// When set, the E2E binary keeps its notebook store under this directory
+/// instead of the app local data dir, so a test run can never read or clear
+/// a real user's notebook store. Unset = the production location.
+pub const NOTEBOOK_DIR_ENV: &str = "DRIVERLENS_E2E_NOTEBOOK_DIR";
 
 /// The synthetic scan output every scripted scan produces.
 pub const FIXTURE_BYTES: &[u8] = include_bytes!("../fixtures/e2e-scripted-report.json");
@@ -144,6 +150,12 @@ pub fn deadline_from_env() -> Option<Duration> {
     } else {
         Some(Duration::from_millis(ms))
     }
+}
+
+/// The E2E notebook-store directory override (`DRIVERLENS_E2E_NOTEBOOK_DIR`).
+/// Unset/empty = `None` (the production app local data dir is used).
+pub fn notebook_dir_from_env() -> Option<PathBuf> {
+    path_from_env(NOTEBOOK_DIR_ENV)
 }
 
 /// Scripted collector runner: writes synthetic fixture bytes to the fixed

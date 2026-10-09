@@ -21,7 +21,9 @@ import {
   E2E_BINARY,
   E2E_TIMEOUT_MS,
   EXPORT_REPORT_PATH,
+  HTML_REPORT_PATH,
   IMPORT_REPORT_PATH,
+  NOTEBOOK_DIR,
   SCENARIO_FILE,
 } from "./run-paths";
 
@@ -77,6 +79,10 @@ export const config: Options.Testrunner = {
           DRIVERLENS_E2E_SCENARIO_FILE: SCENARIO_FILE,
           DRIVERLENS_E2E_OPEN_PATH: IMPORT_REPORT_PATH,
           DRIVERLENS_E2E_SAVE_PATH: EXPORT_REPORT_PATH,
+          DRIVERLENS_E2E_HTML_PATH: HTML_REPORT_PATH,
+          // The notebook store stays under e2e/.run/: a test run never
+          // reads or clears the real user notebook store.
+          DRIVERLENS_E2E_NOTEBOOK_DIR: NOTEBOOK_DIR,
           DRIVERLENS_E2E_TIMEOUT_MS: E2E_TIMEOUT_MS,
         },
       },

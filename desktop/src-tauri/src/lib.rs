@@ -98,8 +98,16 @@ fn setup_scan_manager(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::
     // Extension E-01: the notebook store lives beside the scan temp directory,
     // under the app-owned local data dir (never the repository, never
     // OneDrive-synced folders). Local only — nothing is ever uploaded.
+    //
+    // E2E feature (`wdio-e2e`): `DRIVERLENS_E2E_NOTEBOOK_DIR` relocates the
+    // store to a scratch directory, so a test run can never read or clear a
+    // real user's notebook store. Unset = the production location.
+    #[cfg(feature = "wdio-e2e")]
+    let notebook_dir = e2e_harness::notebook_dir_from_env();
+    #[cfg(not(feature = "wdio-e2e"))]
+    let notebook_dir = None;
     let notebook = std::sync::Arc::new(notebook::NotebookStore::new(
-        app.path().app_local_data_dir()?.join("notebook"),
+        notebook_dir.unwrap_or(app.path().app_local_data_dir()?.join("notebook")),
     ));
     let script = app.path().resolve(
         "resources/Collect-DriverLens.ps1",

@@ -29,6 +29,7 @@ import {
   EXPORT_REPORT_PATH,
   FAKE_MARKER_FIELD,
   FAKE_MARKER_VALUE,
+  HTML_REPORT_PATH,
   IMPORT_REPORT_PATH,
   RESULTS_PATH,
   SCENARIO_FILE,
@@ -40,7 +41,10 @@ import {
 // ---------------------------------------------------------------------------
 const APP_ROOT = ".app";
 const SCAN_STATUS = ".scan__status";
-const REPORT_STATUS = ".app__note";
+// The report status line. Scoped to `role="status"`: extension E-03 added a
+// second `.app__note` (the redaction helper text) BEFORE the status line, so
+// a bare `.app__note` would now resolve to the helper (first match).
+const REPORT_STATUS = '.app__note[role="status"]';
 const META = ".app__meta";
 const SAMPLE_CHIP = ".app__panel-head .chip";
 const SEARCH_INPUT = 'input[aria-label="Search devices"]';
@@ -52,6 +56,15 @@ const OPEN_BUTTON = "button*=Open report";
 const SAMPLE_BUTTON = "button*=Load sample";
 const EXPORT_FULL_BUTTON = "button*=Export full";
 const EXPORT_FILTERED_BUTTON = "button*=Export filtered";
+const EXPORT_HTML_BUTTON = "button*=Export HTML report";
+const REDACTION_CHECKBOX = ".app__checkbox input";
+const REDACTION_HINT = "#export-html-redaction-hint";
+const NOTEBOOK_BUTTON = "button*=Notebook view";
+const SCAN_VIEW_BUTTON = "button*=Scan view";
+const NOTEBOOK_DEVICE = ".notebook__list .notebook__device";
+const NOTEBOOK_NOTE = "#notebook-note";
+const SAVE_NOTE_BUTTON = "button*=Save note";
+const NOTEBOOK_SAVE_NOTICE = ".notebook__note-actions .app__note";
 
 /** Device names of src-tauri/fixtures/e2e-scripted-report.json, in order. */
 const SCAN_FIXTURE_DEVICES = [
@@ -62,6 +75,17 @@ const SCAN_FIXTURE_DEVICES = [
 
 /** Device names of the synthetic import fixture written below. */
 const IMPORTED_DEVICES = ["Imported Synthetic Sensor", "Imported Synthetic Controller"];
+
+/** Notebook copy (extension E-01; src/components/NotebookView.tsx). */
+const NOTEBOOK_EMPTY_TEXT =
+  "No scans recorded yet — run a scan and its devices will appear here.";
+const NOTEBOOK_DISCLOSURE_TEXT =
+  "Scan history and notes are stored only on this PC. Nothing is uploaded.";
+/** The helper line next to the HTML opt-in checkbox (lib/redact.ts). */
+const REDACTION_HELPER_TEXT =
+  "Redacted by default — identifiers are replaced with D01, D02 …";
+/** The note the notebook case saves (synthetic; cleared by the next run). */
+const NOTEBOOK_NOTE_TEXT = "E2E synthetic note — scripted fixture device.";
 
 type Scenario = "success" | "failure" | "hang" | "malformed";
 
@@ -140,6 +164,16 @@ async function rowNames(): Promise<string[]> {
     names.push(await element.getText());
   }
   return names;
+}
+
+/** Rendered text of every notebook device row (extension E-01), in order. */
+async function notebookRowTexts(): Promise<string[]> {
+  const elements = await $$(NOTEBOOK_DEVICE);
+  const texts: string[] = [];
+  for (const element of elements) {
+    texts.push(await element.getText());
+  }
+  return texts;
 }
 
 /**
@@ -355,6 +389,18 @@ describe("DriverLens native window (real IPC, scripted collectors)", () => {
     );
   });
 
+  it("html export: disabled with no report; the redaction hint and checkbox defaults are visible", async () => {
+    // With no report loaded the HTML export is unavailable: the button and
+    // the opt-in checkbox are disabled, and the checkbox starts OFF.
+    const exportButton = await $(EXPORT_HTML_BUTTON);
+    expect(await exportButton.isEnabled()).toBe(false);
+    const checkbox = await $(REDACTION_CHECKBOX);
+    expect(await checkbox.isEnabled()).toBe(false);
+    expect(await checkbox.isSelected()).toBe(false);
+    // The redaction-default helper line is visible next to the checkbox.
+    expect(await elementText(REDACTION_HINT)).toBe(REDACTION_HELPER_TEXT);
+  });
+
   it("sample: loading the bundled sample shows the fictional-sample chip", async () => {
     await (await $(SAMPLE_BUTTON)).click();
     await waitForText(META, "Sample data");
@@ -529,6 +575,146 @@ describe("DriverLens native window (real IPC, scripted collectors)", () => {
 
     // Clean up the written artifacts — nothing may linger.
     fs.rmSync(EXPORT_REPORT_PATH, { force: true });
+  });
+
+  it("html export: redacted by default; the opt-in keeps identifiers (real command, real file)", async () => {
+    // A report exists (the scripted scan fixture): the export button and the
+    // opt-in checkbox are enabled, and the checkbox is still OFF (default).
+    const exportButton = await $(EXPORT_HTML_BUTTON);
+    expect(await exportButton.isEnabled()).toBe(true);
+    const checkbox = await $(REDACTION_CHECKBOX);
+    expect(await checkbox.isEnabled()).toBe(true);
+    expect(await checkbox.isSelected()).toBe(false);
+
+    fs.rmSync(HTML_REPORT_PATH, { force: true });
+
+    // Default export: the written document is the redacted one — ordinals
+    // instead of digests, the "What is redacted" note, no raw digests.
+    await exportButton.click();
+    await waitForText(REPORT_STATUS, "HTML report exported");
+    expect(fs.existsSync(HTML_REPORT_PATH)).toBe(true);
+    const redacted = fs.readFileSync(HTML_REPORT_PATH, "utf8");
+    expect(redacted).toContain("<title>DriverLens report</title>");
+    expect(redacted).toContain("DriverLens 0.2.0");
+    expect(redacted).toContain("What is redacted");
+    expect(redacted).toContain("D01");
+    expect(redacted).toContain("Scripted Synthetic Adapter");
+    expect(redacted).not.toContain("E2E001");
+    await screenshot("html-export-redacted");
+
+    // Opt-in: identifiers kept, the redaction note dropped.
+    await checkbox.click();
+    expect(await checkbox.isSelected()).toBe(true);
+    await exportButton.click();
+    await browser.waitUntil(
+      () => {
+        try {
+          return fs.readFileSync(HTML_REPORT_PATH, "utf8").includes("E2E001");
+        } catch {
+          return false;
+        }
+      },
+      {
+        timeout: 15000,
+        timeoutMsg: "the opt-in HTML export never wrote the device identifiers",
+      },
+    );
+    const withIdentifiers = fs.readFileSync(HTML_REPORT_PATH, "utf8");
+    expect(withIdentifiers).toContain("E2E001");
+    expect(withIdentifiers).not.toContain("What is redacted");
+
+    // Clean up the written artifact — nothing may linger.
+    fs.rmSync(HTML_REPORT_PATH, { force: true });
+  });
+
+  it("notebook: empty state, a scripted scan records devices with versions, and a note persists", async () => {
+    // Deterministic start: clear the app's own notebook store through the
+    // real IPC command (the store the Clear-notebook flow manages). The E2E
+    // binary keeps this store under e2e/.run/notebook
+    // (DRIVERLENS_E2E_NOTEBOOK_DIR) — never the real user store.
+    const cleared = await invokeFromPage("clear_notebook");
+    expect(cleared.ok).toBe(true);
+
+    // Notebook view: the disclosure copy, the empty state, and a disabled
+    // Clear button (there is nothing to clear yet).
+    await (await $(NOTEBOOK_BUTTON)).click();
+    await (await $(".notebook")).waitForDisplayed({ timeout: 15000 });
+    await waitForText(".notebook .app__note", NOTEBOOK_DISCLOSURE_TEXT);
+    const emptyState = await $(".notebook .app__empty");
+    await emptyState.waitForDisplayed({ timeout: 10000 });
+    await expect(emptyState).toHaveText(NOTEBOOK_EMPTY_TEXT);
+    expect(await (await $(".notebook .app__panel-head button")).isEnabled()).toBe(false);
+    await screenshot("notebook-empty");
+
+    // Run a real scripted scan from the scan view (the same UI path the scan
+    // cases drive), then return: the accepted scan is recorded with its
+    // driver versions.
+    await (await $(SCAN_VIEW_BUTTON)).click();
+    setScenario("success");
+    await (await $(SCAN_BUTTON)).click();
+    await waitForText(SCAN_STATUS, "Scan complete");
+    await browser.waitUntil(async () => (await $$("tr.device-row")).length === 3, {
+      timeout: 20000,
+      timeoutMsg: "the notebook-case scan never delivered its 3 devices",
+    });
+
+    await (await $(NOTEBOOK_BUTTON)).click();
+    await browser.waitUntil(async () => (await $$(NOTEBOOK_DEVICE)).length === 3, {
+      timeout: 20000,
+      timeoutMsg: "the notebook never showed the scan's 3 recorded devices",
+    });
+    const rows = await notebookRowTexts();
+    expect(rows.length).toBe(3);
+    // Most-recently-seen first, ties broken by key: the fixture order, each
+    // row carrying the current driver version next to the VID:PID.
+    expect(rows[0]).toContain("Scripted Synthetic Adapter");
+    expect(rows[0]).toContain("0403:6001 · 1.0");
+    expect(rows[0]).toContain("Last seen");
+    expect(rows[1]).toContain("Scripted Legacy Peripheral");
+    expect(rows[1]).toContain("· 0.9");
+    expect(rows[2]).toContain("Scripted System Root Component");
+    expect(rows[2]).toContain("· 1.0");
+
+    // Note save through the real command: select the first device, write a
+    // note, save it.
+    await (await $$(NOTEBOOK_DEVICE))[0].click();
+    const noteField = await $(NOTEBOOK_NOTE);
+    await noteField.waitForDisplayed({ timeout: 10000 });
+    await noteField.setValue(NOTEBOOK_NOTE_TEXT);
+    await (await $(SAVE_NOTE_BUTTON)).click();
+    await browser.waitUntil(
+      async () => {
+        const notice = await $(NOTEBOOK_SAVE_NOTICE);
+        if (!(await notice.isExisting())) return false;
+        return (await notice.getText()).includes("Note saved.");
+      },
+      { timeout: 15000, timeoutMsg: "the note save never reported success" },
+    );
+
+    // Persistence within the session: leave the view and return — the
+    // component refetches the store, so what it shows is what was stored.
+    await (await $(SCAN_VIEW_BUTTON)).click();
+    await (await $(NOTEBOOK_BUTTON)).click();
+    await browser.waitUntil(async () => (await $$(NOTEBOOK_DEVICE)).length === 3, {
+      timeout: 20000,
+      timeoutMsg: "the notebook never reloaded its recorded devices",
+    });
+    const reloaded = await notebookRowTexts();
+    expect(reloaded[0]).toContain("Has note");
+    await (await $$(NOTEBOOK_DEVICE))[0].click();
+    const reloadedField = await $(NOTEBOOK_NOTE);
+    await reloadedField.waitForDisplayed({ timeout: 10000 });
+    expect(await reloadedField.getValue()).toBe(NOTEBOOK_NOTE_TEXT);
+
+    // And the store itself (real IPC read) carries the note.
+    const stored = await invokeFromPage("get_notebook");
+    expect(stored.ok).toBe(true);
+    const view = stored.value as { devices?: Array<{ name: string; note: string }> };
+    const record = (view.devices ?? []).find(
+      (device) => device.name === "Scripted Synthetic Adapter",
+    );
+    expect(record?.note).toBe(NOTEBOOK_NOTE_TEXT);
+    await screenshot("notebook");
   });
 
   it("console stayed clean throughout the run", async () => {

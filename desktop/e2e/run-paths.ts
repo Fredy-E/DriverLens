@@ -23,6 +23,14 @@ export const SCENARIO_FILE = path.join(RUN_DIR, "scenario.txt");
 export const IMPORT_REPORT_PATH = path.join(RUN_DIR, "import-report.json");
 /** The destination the fake save dialog returns for exports. */
 export const EXPORT_REPORT_PATH = path.join(RUN_DIR, "export-report.json");
+/** The destination the fake HTML save dialog returns for HTML exports. */
+export const HTML_REPORT_PATH = path.join(RUN_DIR, "export-report.html");
+/**
+ * The E2E app's private notebook store directory
+ * (`DRIVERLENS_E2E_NOTEBOOK_DIR`): the E2E binary keeps its notebook store
+ * here — never the real user store under the app local data dir.
+ */
+export const NOTEBOOK_DIR = path.join(RUN_DIR, "notebook");
 /** The machine-readable run summary written by the spec's after() hook. */
 export const RESULTS_PATH = path.join(RUN_DIR, "results.json");
 /** WDIO screenshots captured during the run. */

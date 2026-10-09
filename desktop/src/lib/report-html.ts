@@ -23,7 +23,7 @@ import { formatCount, statusLabel, textOr } from "./format";
 import { redactReport, REDACTION_NOTE } from "./redact";
 
 export const APP_NAME = "DriverLens";
-export const APP_VERSION = "0.1.0";
+export const APP_VERSION = "0.2.0";
 
 /** Default file name suggested to the native save dialog. */
 export const SUGGESTED_HTML_FILE_NAME = "driverlens-report.html";
