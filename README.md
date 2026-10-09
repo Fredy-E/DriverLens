@@ -85,13 +85,13 @@ Report comparisons, richer package evidence, and an installable desktop shell af
 
 ---
 
-## Desktop edition (ARM64, in development)
+## Desktop edition (ARM64)
 
 <p align="center">
   <img src="desktop/docs/images/desktop-card.svg" alt="DriverLens — Desktop (ARM64): a read-only Windows device and driver inventory; Tauri 2 + React + Rust native ARM64 app; in development" width="100%">
 </p>
 
-A second edition of DriverLens is in development as a desktop application: **Tauri 2 + React/TypeScript + Rust**, shipped as a **native ARM64 Windows binary**. It keeps the same read-only, local-only model as the browser edition — the same self-authored collector script is bundled inside the app, scans are user-initiated only (never at startup), and nothing is uploaded. Full guide: [desktop/docs/DESKTOP.md](desktop/docs/DESKTOP.md); security boundary: [desktop/docs/DESKTOP-SECURITY.md](desktop/docs/DESKTOP-SECURITY.md).
+A second edition of DriverLens ships as a desktop application: **Tauri 2 + React/TypeScript + Rust**, a **native ARM64 Windows binary**. It keeps the same read-only, local-only model as the browser edition — the same self-authored collector script is bundled inside the app, scans are user-initiated only (never at startup), and nothing is uploaded. The desktop edition adds a **local Notebook** (device/driver history and per-device notes, stored only on this PC) and **portable HTML reports** (a single self-contained file, redacted by default). Full guide: [desktop/docs/DESKTOP.md](desktop/docs/DESKTOP.md); security boundary: [desktop/docs/DESKTOP-SECURITY.md](desktop/docs/DESKTOP-SECURITY.md).
 
 **Prerequisites (runtime):** [PowerShell 7](https://aka.ms/powershell) and the WebView2 runtime (normally included with Windows 10 1803+ / Windows 11). The NSIS installer stub is x86 and runs under emulation on ARM64 machines; the app it installs is native ARM64.
 
@@ -105,9 +105,9 @@ npm run tauri -- build --target aarch64-pc-windows-msvc --no-bundle    # release
 
 The native E2E build and run commands are in [desktop/docs/NATIVE-E2E.md](desktop/docs/NATIVE-E2E.md).
 
-**Verified so far** (full battery PASS on 2026-10-08, re-run green after the 2026-10-09 collector fix; record: [desktop/docs/DESKTOP-VERIFICATION.md](desktop/docs/DESKTOP-VERIFICATION.md)): 169 frontend tests (15 files), 77 Rust tests (67 unit + 10 IPC-boundary integration), 7 bundle/static checks, typecheck and build — plus a 12-case native WebDriver E2E run driving the real compiled window and the real IPC boundary (scripted synthetic collectors; no real inventory; re-run green post-fix). The release binary is a native ARM64 PE (machine type `0xAA64`); the production NSIS installer was built and inspected (1,911,385 bytes — 1.82 MiB; its stub is x86 — documented Tauri behavior).
+**Verified so far** (full battery PASS on 2026-10-09 for the v0.2.0 candidate; records: [desktop/docs/DESKTOP-VERIFICATION.md](desktop/docs/DESKTOP-VERIFICATION.md), [desktop/docs/DESKTOP.md](desktop/docs/DESKTOP.md)): 211 frontend tests (20 files), 106 Rust tests (92 unit + 14 IPC-boundary integration), 7 bundle/static checks, typecheck and build — plus a 15-case native WebDriver E2E run driving the real compiled window and the real IPC boundary (scripted synthetic collectors; no real inventory). The release binary is a native ARM64 PE (machine type `0xAA64`); the production NSIS installer was built and inspected (1,948,602 bytes — 1.86 MiB; its stub is x86 — documented Tauri behavior).
 
-**Not yet verified:** no clean-machine verification has happened (no VM in this environment) — install, upgrade, uninstall, SmartScreen and missing-WebView2 behavior are all untested; the installer is unsigned (no code-signing certificate) — expect a SmartScreen warning if it is downloaded via a browser; no hardware matrix beyond this one ARM64 machine (x86/x64 untested). The E2E suite cannot prove real hardware inventory or real collector behavior on a device. No desktop release is published yet.
+**Not yet verified:** no clean-machine verification has happened (no VM in this environment) — install, upgrade, uninstall, SmartScreen and missing-WebView2 behavior are all untested; the installer is unsigned (no code-signing certificate) — expect a SmartScreen warning if it is downloaded via a browser; no hardware matrix beyond this one ARM64 machine (x86/x64 untested). The E2E suite cannot prove real hardware inventory or real collector behavior on a device. Desktop releases are published on the [Releases page](https://github.com/Fredy-E/DriverLens/releases) (v0.1.0 and later).
 
 **Privacy:** the report stays on this machine — no upload, no telemetry, no network calls in the app workflow. Device digests are stable pseudonymous evidence and are **linkable across reports, not anonymity**; device names and free-text fields may identify specific equipment.
 
