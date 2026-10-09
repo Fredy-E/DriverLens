@@ -15,14 +15,19 @@
  * - Every export goes through the NATIVE save dialog; its own overwrite
  *   confirmation is the only overwrite confirmation (nothing is ever written
  *   without the user picking the destination).
+ * - The portable HTML export builds one self-contained document from the
+ *   validated current report (redacted by default — see lib/redact.ts and
+ *   lib/report-html.ts) and writes it through the same native save dialog.
  */
 import { useCallback, useState } from "react";
 
-import { exportReport, isScanError, openReport } from "../adapters/native";
+import { exportHtmlReport, exportReport, isScanError, openReport } from "../adapters/native";
 import syntheticReportData from "../assets/synthetic-report.json";
 import type { Report } from "../contracts/report";
 import { validateReport } from "../contracts/validate-report";
 import { byteCountLabel, deviceCountLabel, formatCount } from "../lib/format";
+import { REDACTION_HELPER_TEXT } from "../lib/redact";
+import { buildReportHtml, SUGGESTED_HTML_FILE_NAME } from "../lib/report-html";
 import { commandErrorText } from "../lib/scan-messages";
 
 export interface ReportActionsProps {
@@ -42,7 +47,7 @@ interface Status {
   text: string;
 }
 
-type Pending = "import" | "sample" | "export-full" | "export-filtered" | null;
+type Pending = "import" | "sample" | "export-full" | "export-filtered" | "export-html" | null;
 
 const INITIAL_STATUS: Status = {
   tone: "info",
@@ -68,6 +73,8 @@ export default function ReportActions({
 }: ReportActionsProps) {
   const [pending, setPending] = useState<Pending>(null);
   const [status, setStatus] = useState<Status>(INITIAL_STATUS);
+  // Opt-in: OFF keeps the digests redacted (ordinals) in the HTML export.
+  const [includeIdentifiers, setIncludeIdentifiers] = useState(false);
 
   const importReport = useCallback(async () => {
     if (pending !== null) return;
@@ -151,6 +158,31 @@ export default function ReportActions({
     [filteredIds, matchedCount, pending, report]
   );
 
+  const runHtmlExport = useCallback(async () => {
+    if (pending !== null || report === null) return;
+    setPending("export-html");
+    try {
+      // The HTML is built from the validated report in view; redaction is on
+      // unless the user opted into identifiers. The Rust side opens the save
+      // dialog and writes exactly the chosen path.
+      const html = buildReportHtml(report, { includeIdentifiers });
+      const summary = await exportHtmlReport(html, SUGGESTED_HTML_FILE_NAME);
+      if (summary === null) {
+        setStatus({ tone: "info", text: "Save cancelled — nothing was exported." });
+      } else {
+        setStatus({
+          tone: "info",
+          text: `HTML report exported — ${byteCountLabel(summary.bytesWritten)} written.`,
+        });
+      }
+    } catch (error) {
+      const code = isScanError(error) ? error.code : undefined;
+      setStatus({ tone: "error", text: `Export failed — ${commandErrorText(error, code)}` });
+    } finally {
+      setPending(null);
+    }
+  }, [includeIdentifiers, pending, report]);
+
   const busy = pending !== null;
 
   return (
@@ -209,7 +241,35 @@ export default function ReportActions({
         >
           Export filtered ({formatCount(matchedCount)})
         </button>
+        <button
+          type="button"
+          className="button"
+          onClick={() => {
+            void runHtmlExport();
+          }}
+          disabled={busy || report === null}
+          title={
+            report === null
+              ? "No report is loaded to export."
+              : "Export one self-contained HTML report (opens offline; redacted by default)."
+          }
+        >
+          Export HTML report…
+        </button>
+        <label className="app__checkbox">
+          <input
+            type="checkbox"
+            checked={includeIdentifiers}
+            onChange={(event) => setIncludeIdentifiers(event.target.checked)}
+            disabled={busy || report === null}
+            aria-describedby="export-html-redaction-hint"
+          />{" "}
+          Include device identifiers
+        </label>
       </div>
+      <p className="app__note" id="export-html-redaction-hint">
+        {REDACTION_HELPER_TEXT}
+      </p>
       <p
         className={status.tone === "error" ? "app__note app__note--error" : "app__note"}
         role="status"

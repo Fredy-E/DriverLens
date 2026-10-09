@@ -140,6 +140,14 @@ impl ReportDialogs for FakeDialogs {
     fn pick_export_path(&self) -> Result<Option<PathBuf>, ScanError> {
         Ok(self.save.lock().unwrap().clone())
     }
+
+    fn pick_export_html_path(&self, suggested_name: &str) -> Result<Option<PathBuf>, ScanError> {
+        // One fake destination for both save flows; the suggested name is the
+        // dialog's cosmetic default only (sanitization is asserted at the
+        // unit level in `scan.rs`).
+        let _ = suggested_name;
+        Ok(self.save.lock().unwrap().clone())
+    }
 }
 
 fn scratch_dir(label: &str) -> PathBuf {
@@ -169,6 +177,7 @@ fn build_app(runner: Arc<FakeRunner>, dialogs: Arc<FakeDialogs>) -> tauri::App<M
             commands::cancel_scan,
             commands::open_report,
             commands::export_report,
+            commands::export_html_report,
             commands::get_report
         ])
         .manage(manager)
@@ -411,6 +420,7 @@ fn ipc_window_without_capability_is_denied_for_every_command() {
         "cancel_scan",
         "open_report",
         "export_report",
+        "export_html_report",
         "get_report",
         "read_anything",
     ] {
@@ -441,6 +451,7 @@ fn ipc_remote_origin_is_denied() {
         "get_scan_state",
         "open_report",
         "export_report",
+        "export_html_report",
         "get_report",
     ] {
         assert_acl_denied(invoke(&main, cmd, REMOTE_URL), cmd);
@@ -621,6 +632,69 @@ fn ipc_filtered_export_accepts_only_ids() {
     assert!(summary.bytes_written > 0);
     let full = std::fs::read_to_string(&export_path).expect("full export file");
     assert!(!full.contains("filterNote"), "a full export gains no filterNote");
+}
+
+/// Portable HTML export over the real invoke path: the only inputs are the
+/// document and the dialog's suggested file name (camelCase on the JS side,
+/// deserialized into the Rust `suggested_name`); the destination still comes
+/// from the native dialog; empty/oversized payloads are refused with the
+/// business DTO before any dialog opens.
+#[test]
+fn ipc_export_html_report_writes_only_to_the_dialog_path_and_refuses_bad_payloads() {
+    let export_dir = scratch_dir("export-html-ipc");
+    let export_path = export_dir.join("driverlens-report.html");
+    let dialogs = Arc::new(FakeDialogs {
+        open: Mutex::new(None),
+        save: Mutex::new(Some(export_path.clone())),
+    });
+    let app = build_app(Arc::new(FakeRunner::new(sample_bytes())), dialogs);
+    let main = window(&app, "main");
+
+    let html = "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"></head><body>synthetic report</body></html>";
+    let body = InvokeBody::Json(json!({
+        "html": html,
+        "suggestedName": "driverlens-report.html",
+        // Forged extras must be ignored entirely.
+        "path": "C:\\evil-output.html",
+        "program": "C:\\evil.exe"
+    }));
+    let result = get_ipc_response(&main, request("export_html_report", LOCAL_URL, body))
+        .expect("export_html_report must be allowed on the main window");
+    let summary = result
+        .deserialize::<Option<driverlens_desktop_lib::scan::ExportSummary>>()
+        .expect("option")
+        .expect("the fake dialog picked a destination");
+    assert_eq!(summary.bytes_written, html.len() as u64);
+    let text = std::fs::read_to_string(&export_path).expect("written file");
+    assert_eq!(text, html, "the file contains exactly the submitted document");
+    assert!(!text.contains("evil"), "forged values must not reach the file");
+
+    // Empty payload: business refusal (object DTO), not an ACL denial, and
+    // nothing is written.
+    std::fs::remove_file(&export_path).expect("cleanup");
+    let empty = InvokeBody::Json(json!({ "html": "", "suggestedName": "x.html" }));
+    let error = get_ipc_response(&main, request("export_html_report", LOCAL_URL, empty))
+        .expect_err("empty payload must be refused");
+    assert_eq!(
+        error.get("code").and_then(|code| code.as_str()),
+        Some("invalid_report"),
+        "expected the business-refusal DTO, got {error}"
+    );
+    assert!(!export_path.exists());
+
+    // Oversized payload (above the 8 MiB cap): refused before the dialog.
+    let oversized = InvokeBody::Json(json!({
+        "html": "x".repeat(driverlens_desktop_lib::scan::MAX_HTML_BYTES + 1),
+        "suggestedName": "x.html"
+    }));
+    let error = get_ipc_response(&main, request("export_html_report", LOCAL_URL, oversized))
+        .expect_err("oversized payload must be refused");
+    assert_eq!(
+        error.get("code").and_then(|code| code.as_str()),
+        Some("too_large"),
+        "expected the business-refusal DTO, got {error}"
+    );
+    assert!(!export_path.exists());
 }
 
 /// The main window can reach the dialog-backed commands even while a scan is

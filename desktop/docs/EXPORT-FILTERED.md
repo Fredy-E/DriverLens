@@ -95,3 +95,13 @@ invoke("get_report")  → the current stored report (last accepted scan or impor
 The former limitation — no command returned the current report, so a fresh scan could only be counted,
 never displayed — is fixed by `get_report` (see "Reading the current report back" above): after a scan
 completes, its report is fetched, revalidated and displayed through the same table path as imports.
+
+## Portable HTML export (E-03)
+
+A sibling export with the same dialog discipline: `export_html_report { html, suggested_name }` writes one
+self-contained, print-friendly HTML document built in the renderer from the validated report — **redacted by
+default** (device digests replaced by ordinals `D01, D02 …`; the "Include device identifiers" checkbox opts
+in). The Rust side refuses empty payloads and anything above 8 MiB *before* the dialog opens, sanitizes the
+suggested file name (no path separators; `.html` appended), and writes only the user-chosen dialog path.
+See [DESKTOP.md](DESKTOP.md) ("Portable HTML reports") and [DESKTOP-SECURITY.md](DESKTOP-SECURITY.md)
+("Portable HTML report contents").

@@ -3,14 +3,18 @@
 //!
 //! # The boundary
 //!
-//! Exactly six custom commands exist, all snake_case:
+//! Exactly seven custom commands exist, all snake_case:
 //! `scan_devices`, `get_scan_state`, `cancel_scan`, `open_report`,
-//! `export_report`, `get_report`. `export_report` takes exactly ONE optional
-//! argument — `ids: string[]`, a list of device digests to export (Task 10
-//! filtered export), validated against the current report and used only for
-//! set membership. Nothing else is parameterized: the JS side cannot supply
-//! an executable name, a shell command, a collector script path, or a
-//! filesystem destination:
+//! `export_report`, `export_html_report`, `get_report`. `export_report` takes
+//! exactly ONE optional argument — `ids: string[]`, a list of device digests
+//! to export (Task 10 filtered export), validated against the current report
+//! and used only for set membership. `export_html_report` takes exactly TWO
+//! arguments — `html` (the self-contained document the renderer built from
+//! the validated report; redacted by default) and `suggested_name` (the save
+//! dialog's default file name, sanitized before use — never a destination).
+//! Nothing else is parameterized: the JS side cannot supply an executable
+//! name, a shell command, a collector script path, or a filesystem
+//! destination:
 //!
 //! - `scan_devices` / `get_scan_state` / `cancel_scan`: no arguments. The
 //!   process to run, the script, the argument vector and the app-owned output
@@ -24,6 +28,10 @@
 //!   confirmation is the only overwrite confirmation. Writes the current
 //!   in-memory report — full when `ids` is absent, or exactly the selected
 //!   devices stamped with `filterNote` when it is present.
+//! - `export_html_report`: `html` + `suggested_name` (renderer data only —
+//!   never a destination). The user picks the destination through a NATIVE
+//!   save dialog and the file written is exactly the chosen path. An empty
+//!   payload or one above 8 MiB is refused before the dialog opens.
 //! - `get_report`: no arguments, read-only. Returns the current in-memory
 //!   report (the last accepted scan or import — the same stored value
 //!   `export_report` writes) or `null` when none exists. It cannot start,
@@ -98,6 +106,21 @@ pub async fn export_report(
     state.export_report(ids)
 }
 
+/// Opens a native save picker and writes the renderer-built HTML document to
+/// the chosen path. Returns the byte count written, or `None` when the
+/// dialog was cancelled. The payload contract is enforced before the dialog
+/// opens: empty is refused (`invalid_report`), above 8 MiB is refused
+/// (`too_large`), and `suggested_name` is only the dialog's sanitized
+/// default file name — never a destination.
+#[tauri::command]
+pub async fn export_html_report(
+    state: State<'_, ScanManager>,
+    html: String,
+    suggested_name: String,
+) -> Result<Option<ExportSummary>, ScanError> {
+    state.export_html_report(html, suggested_name)
+}
+
 /// The current validated in-memory report (the last accepted scan or import),
 /// or `null` when none exists yet. Read-only and argument-free: it cannot
 /// start, cancel or influence anything, and it returns exactly the stored
@@ -145,6 +168,22 @@ impl ReportDialogs for TauriReportDialogs {
             .set_title("Export DriverLens report")
             .set_file_name("driverlens-report.json")
             .add_filter("DriverLens report (JSON)", &["json"])
+            .blocking_save_file()
+            .map(|file_path| {
+                file_path
+                    .into_path()
+                    .map_err(|_| ScanError::io())
+            })
+            .transpose()
+    }
+
+    fn pick_export_html_path(&self, suggested_name: &str) -> Result<Option<PathBuf>, ScanError> {
+        self.app
+            .dialog()
+            .file()
+            .set_title("Export DriverLens HTML report")
+            .set_file_name(suggested_name)
+            .add_filter("DriverLens report (HTML)", &["html"])
             .blocking_save_file()
             .map(|file_path| {
                 file_path

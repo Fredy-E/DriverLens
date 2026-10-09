@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-export-html-report"
+description = "Enables the export_html_report command without any pre-configured scope."
+commands.allow = ["export_html_report"]
+
+[[permission]]
+identifier = "deny-export-html-report"
+description = "Denies the export_html_report command without any pre-configured scope."
+commands.deny = ["export_html_report"]
