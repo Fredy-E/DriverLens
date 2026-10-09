@@ -44,6 +44,8 @@ export type ScanErrorCode =
   | "too_large"
   | "invalid_report"
   | "invalid_selection"
+  | "unknown_key"
+  | "note_too_long"
   | "io";
 
 /** `{ code, message }` — the rejection shape of every command-level failure. */
@@ -138,6 +140,92 @@ export async function exportReport(ids?: readonly string[]): Promise<ExportSumma
  */
 export async function getReport(): Promise<Report | null> {
   return invoke<Report | null>("get_report");
+}
+
+/* ------------------------------------------------------------------ *
+ * USB Device Notebook (extension E-01) — local device/driver history *
+ * ------------------------------------------------------------------ */
+
+/** One recorded sighting of a device's driver/status tuple. */
+export interface NotebookObservation {
+  /** Wall-clock time of the sighting, ms since UNIX epoch. */
+  at: number;
+  version: string | null;
+  provider: string | null;
+  windowsStatus: string | null;
+  errorCode: number | null;
+}
+
+/** A field change between two consecutive observations (e.g. a driver update). */
+export interface NotebookChange {
+  /** When the new value was observed, ms since UNIX epoch. */
+  at: number;
+  field: "version" | "provider" | "windowsStatus" | "errorCode";
+  from: string | number | null;
+  to: string | number | null;
+}
+
+/** The device's current driver/status tuple (last stored observation). */
+export interface NotebookCurrentDriver {
+  version: string | null;
+  provider: string | null;
+  windowsStatus: string | null;
+  errorCode: number | null;
+}
+
+/** One notebook device as `get_notebook` reports it. */
+export interface NotebookDevice {
+  /** Privacy digest of the instance ID (the report's `id`) — the store key. */
+  key: string;
+  name: string;
+  vid: string | null;
+  pid: string | null;
+  bus: string | null;
+  deviceClass: string | null;
+  firstSeen: number;
+  lastSeen: number;
+  observations: NotebookObservation[];
+  current: NotebookCurrentDriver;
+  changes: NotebookChange[];
+  note: string;
+}
+
+/** The `get_notebook` payload: devices most-recently-seen first. */
+export interface NotebookView {
+  devices: NotebookDevice[];
+  updatedAt: number;
+}
+
+/** Uniform success payload of the notebook write commands (`{ ok: true }`). */
+export interface OkResponse {
+  ok: boolean;
+}
+
+/**
+ * The stored notebook view (extension E-01): every device recorded by past
+ * scans, with its driver/status history and note. Read-only and
+ * argument-free; the store lives only on this PC and is never uploaded.
+ */
+export async function getNotebook(): Promise<NotebookView> {
+  return invoke<NotebookView>("get_notebook");
+}
+
+/**
+ * Saves the note for one existing notebook device. `key` must be a device key
+ * already in the store (the Rust side refuses unknown keys with
+ * `{ code: "unknown_key" }`) and `text` is capped at 4000 characters
+ * (`{ code: "note_too_long" }`). Neither value is a path or a destination.
+ */
+export async function saveDeviceNote(key: string, text: string): Promise<OkResponse> {
+  return invoke<OkResponse>("save_device_note", { key, text });
+}
+
+/**
+ * Removes the notebook store from this PC (idempotent). Only the app-owned
+ * local store is touched; nothing is uploaded.
+ */
+export async function clearNotebook(): Promise<OkResponse> {
+  return invoke<OkResponse>("clear_notebook");
 }
 
 /**

@@ -22,6 +22,7 @@
 import { useCallback, useMemo, useState } from "react";
 
 import DeviceTable from "./components/DeviceTable";
+import NotebookView from "./components/NotebookView";
 import ReportActions from "./components/ReportActions";
 import ScanControls from "./components/ScanControls";
 import type { Report } from "./contracts/report";
@@ -33,6 +34,8 @@ import { reportStats, type ReportStats } from "./lib/stats";
 export default function App() {
   const [report, setReport] = useState<Report | null>(null);
   const [query, setQuery] = useState<DeviceQuery>(DEFAULT_QUERY);
+  /** Active view: the scan/report workflow, or the USB Device Notebook. */
+  const [view, setView] = useState<"scan" | "notebook">("scan");
 
   const handleReportLoaded = useCallback((next: Report) => {
     setReport(next);
@@ -70,29 +73,63 @@ export default function App() {
         </p>
       </header>
 
-      <ScanControls onScanReport={handleReportLoaded} />
+      {view === "scan" ? (
+        <>
+          <ScanControls onScanReport={handleReportLoaded} />
 
-      <ReportActions
-        report={report}
-        filteredIds={filteredIds}
-        matchedCount={filtered.length}
-        onReportLoaded={handleReportLoaded}
-      />
+          <ReportActions
+            report={report}
+            filteredIds={filteredIds}
+            matchedCount={filtered.length}
+            onReportLoaded={handleReportLoaded}
+          />
 
-      <section className="app__panel" aria-labelledby="devices-title">
-        <div className="app__panel-head">
-          <h2 id="devices-title">Devices</h2>
-          {report?.sample ? <span className="chip">Fictional sample data</span> : null}
-        </div>
-        <StatsRow stats={stats} />
-        <p className="app__meta">{meta}</p>
-        <DeviceTable
-          devices={filtered}
-          query={query}
-          onQueryChange={setQuery}
-          hasReport={report !== null}
-        />
-      </section>
+          <section className="app__panel" aria-labelledby="devices-title">
+            <div className="app__panel-head">
+              <h2 id="devices-title">Devices</h2>
+              {report?.sample ? <span className="chip">Fictional sample data</span> : null}
+            </div>
+            <StatsRow stats={stats} />
+            <p className="app__meta">{meta}</p>
+            <DeviceTable
+              devices={filtered}
+              query={query}
+              onQueryChange={setQuery}
+              hasReport={report !== null}
+            />
+          </section>
+        </>
+      ) : (
+        <NotebookView />
+      )}
+
+      {/*
+        View switcher (extension E-01). Placed after the scan view's panels on
+        purpose: the pre-existing keyboard tab-order contract walks the scan
+        view stop-by-stop in DOM order (tests/a11y-keyboard.test.tsx), so the
+        switcher must not insert tab stops before those controls. It is fully
+        keyboard operable where it sits (Tab to reach, Enter/Space to switch),
+        labelled, and each button reflects the active view via aria-pressed.
+      */}
+      <nav className="viewnav" aria-label="View">
+        <span className="viewnav__label">View</span>
+        <button
+          type="button"
+          className="button"
+          aria-pressed={view === "scan"}
+          onClick={() => setView("scan")}
+        >
+          Scan view
+        </button>
+        <button
+          type="button"
+          className="button"
+          aria-pressed={view === "notebook"}
+          onClick={() => setView("notebook")}
+        >
+          Notebook view
+        </button>
+      </nav>
 
       <footer className="app__footer">
         <p>

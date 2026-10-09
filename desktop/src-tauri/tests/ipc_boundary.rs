@@ -25,6 +25,7 @@ use tauri::{Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 use driverlens_desktop_lib::collector::{ChildProcess, Runner};
 use driverlens_desktop_lib::commands;
+use driverlens_desktop_lib::notebook::NotebookStore;
 use driverlens_desktop_lib::scan::{
     ReportDialogs, ScanError, ScanManager, ScanManagerConfig, ScanSnapshot, ScanState,
 };
@@ -654,4 +655,213 @@ fn ipc_boundary_is_independent_of_scan_state() {
     let manager = app.state::<ScanManager>();
     let terminal = wait_for_terminal(&manager, Duration::from_secs(15));
     let _ = terminal;
+}
+
+// -- USB Device Notebook boundary (extension E-01) --------------------------
+
+/// Builds a mock app with the notebook store managed alongside the scan
+/// manager, registering all nine commands through the real invoke path. The
+/// pre-existing `build_app` helper is untouched: existing tests keep their
+/// exact six-command app; the notebook tests get the full production shape.
+fn build_app_with_notebook(
+    runner: Arc<FakeRunner>,
+    dialogs: Arc<FakeDialogs>,
+    notebook: Arc<NotebookStore>,
+) -> tauri::App<MockRuntime> {
+    let manager = ScanManager::new(ScanManagerConfig {
+        runner,
+        dialogs: Some(dialogs),
+        scans_dir: scratch_dir("scans-notebook"),
+        deadline: Duration::from_secs(10),
+    });
+    manager.attach_notebook(notebook.clone());
+    mock_builder()
+        .invoke_handler(tauri::generate_handler![
+            commands::scan_devices,
+            commands::get_scan_state,
+            commands::cancel_scan,
+            commands::open_report,
+            commands::export_report,
+            commands::get_report,
+            commands::get_notebook,
+            commands::save_device_note,
+            commands::clear_notebook
+        ])
+        .manage(manager)
+        .manage(notebook)
+        .build(tauri::generate_context!())
+        .expect("the mock test app must build")
+}
+
+fn notebook_store(label: &str) -> Arc<NotebookStore> {
+    Arc::new(NotebookStore::new(scratch_dir(label)))
+}
+
+fn cancelling_dialogs() -> Arc<FakeDialogs> {
+    Arc::new(FakeDialogs {
+        open: Mutex::new(None),
+        save: Mutex::new(None),
+    })
+}
+
+/// Polls `get_notebook` until it reports `expected` devices. Recording runs
+/// on the scan thread after the terminal state is published, so a short
+/// bounded wait keeps this race-free without weakening the assertion.
+fn wait_for_notebook_devices(
+    main: &WebviewWindow<MockRuntime>,
+    expected: usize,
+    timeout: Duration,
+) -> JsonValue {
+    let deadline = Instant::now() + timeout;
+    loop {
+        let body = invoke(main, "get_notebook", LOCAL_URL).expect("get_notebook must be allowed");
+        let view: JsonValue = body.deserialize().expect("notebook view");
+        if view["devices"].as_array().map(Vec::len) == Some(expected) {
+            return view;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "notebook never reached {expected} devices: {view}"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+/// The three notebook commands answer on the main window: `get_notebook` is
+/// read-only and argument-free (empty shape before any scan), an unknown note
+/// key is a business refusal (`unknown_key` DTO — never an ACL denial), and
+/// `clear_notebook` is an idempotent `{ok:true}`.
+#[test]
+fn ipc_notebook_commands_respond_on_main_window() {
+    let app = build_app_with_notebook(
+        Arc::new(FakeRunner::new(sample_bytes())),
+        cancelling_dialogs(),
+        notebook_store("ipc-notebook-empty"),
+    );
+    let main = window(&app, "main");
+
+    let body = invoke(&main, "get_notebook", LOCAL_URL).expect("get_notebook must be allowed");
+    let view: JsonValue = body.deserialize().expect("notebook view");
+    assert_eq!(view["devices"].as_array().expect("devices").len(), 0);
+    assert!(
+        view["updatedAt"].is_number(),
+        "updatedAt is part of the shape: {view}"
+    );
+
+    let result = get_ipc_response(
+        &main,
+        request(
+            "save_device_note",
+            LOCAL_URL,
+            InvokeBody::Json(json!({ "key": "NOT-A-DEVICE", "text": "hello" })),
+        ),
+    );
+    let error = result.expect_err("an unknown key must be refused");
+    assert_eq!(
+        error.get("code").and_then(|code| code.as_str()),
+        Some("unknown_key"),
+        "expected the business-refusal DTO, got {error}"
+    );
+
+    let body =
+        invoke(&main, "clear_notebook", LOCAL_URL).expect("clear_notebook must be allowed");
+    let ok: JsonValue = body.deserialize().expect("ok payload");
+    assert_eq!(ok, json!({ "ok": true }));
+    // Idempotent: clearing an empty notebook is still ok.
+    let body = invoke(&main, "clear_notebook", LOCAL_URL).expect("second clear allowed");
+    let ok: JsonValue = body.deserialize().expect("ok payload");
+    assert_eq!(ok, json!({ "ok": true }));
+}
+
+/// End-to-end through the real invoke path: an accepted scan records one
+/// observation per device; a note saved for a known key is stored (forged
+/// extra arguments are ignored); oversized text is refused with
+/// `note_too_long`; clearing empties the store.
+#[test]
+fn ipc_notebook_records_accepted_scans_and_saves_notes() {
+    let runner = Arc::new(FakeRunner::new(sample_bytes()));
+    let notebook = notebook_store("ipc-notebook-record");
+    let app = build_app_with_notebook(runner.clone(), cancelling_dialogs(), notebook.clone());
+    let main = window(&app, "main");
+
+    invoke(&main, "scan_devices", LOCAL_URL).expect("scan_devices must be allowed");
+    let manager = app.state::<ScanManager>();
+    let terminal = wait_for_terminal(&manager, Duration::from_secs(15));
+    assert_eq!(terminal.state, ScanState::Complete);
+
+    let view = wait_for_notebook_devices(&main, 3, Duration::from_secs(10));
+    let devices = view["devices"].as_array().expect("devices");
+    let first = devices
+        .iter()
+        .find(|device| device["key"] == "SAMPLE001")
+        .expect("SAMPLE001 must be stored");
+    assert_eq!(first["name"], "Example USB Serial Adapter");
+    assert_eq!(
+        first["observations"].as_array().expect("observations").len(),
+        1,
+        "one sighting, one observation"
+    );
+    assert_eq!(first["current"]["version"], "1.0");
+    assert_eq!(first["note"], "");
+
+    // Save a note for the known key; forged extras are ignored entirely.
+    let forged = InvokeBody::Json(json!({
+        "key": "SAMPLE001",
+        "text": "Firmware reflashed on the bench",
+        "path": "C:\\evil-note.json",
+        "command": "write_anything"
+    }));
+    let body = get_ipc_response(&main, request("save_device_note", LOCAL_URL, forged))
+        .expect("a known key must save");
+    let ok: JsonValue = body.deserialize().expect("ok payload");
+    assert_eq!(ok, json!({ "ok": true }));
+
+    let view = wait_for_notebook_devices(&main, 3, Duration::from_secs(10));
+    let text = serde_json::to_string(&view).expect("serialize");
+    assert!(text.contains("Firmware reflashed on the bench"));
+    assert!(!text.contains("evil"), "forged values must not reach the store");
+
+    // Oversized text: business refusal with the note_too_long code.
+    let oversized = "x".repeat(4001);
+    let result = get_ipc_response(
+        &main,
+        request(
+            "save_device_note",
+            LOCAL_URL,
+            InvokeBody::Json(json!({ "key": "SAMPLE001", "text": oversized })),
+        ),
+    );
+    let error = result.expect_err("oversized notes must be refused");
+    assert_eq!(
+        error.get("code").and_then(|code| code.as_str()),
+        Some("note_too_long"),
+        "got {error}"
+    );
+
+    // Clearing empties the store (the file is removed; the view reads empty).
+    let body = invoke(&main, "clear_notebook", LOCAL_URL).expect("clear must be allowed");
+    let ok: JsonValue = body.deserialize().expect("ok payload");
+    assert_eq!(ok, json!({ "ok": true }));
+    let body = invoke(&main, "get_notebook", LOCAL_URL).expect("allowed");
+    let view: JsonValue = body.deserialize().expect("view");
+    assert_eq!(view["devices"].as_array().expect("devices").len(), 0);
+}
+
+/// The notebook commands obey the same boundary as the original six: denied
+/// on any window without the capability, denied for remote origins.
+#[test]
+fn ipc_notebook_commands_denied_for_other_windows_and_remote_origins() {
+    let app = build_app_with_notebook(
+        Arc::new(FakeRunner::new(sample_bytes())),
+        cancelling_dialogs(),
+        notebook_store("ipc-notebook-denied"),
+    );
+    let other = window(&app, "other");
+    for cmd in ["get_notebook", "save_device_note", "clear_notebook"] {
+        assert_acl_denied(invoke(&other, cmd, LOCAL_URL), cmd);
+    }
+    let main = window(&app, "main");
+    for cmd in ["get_notebook", "save_device_note", "clear_notebook"] {
+        assert_acl_denied(invoke(&main, cmd, REMOTE_URL), cmd);
+    }
 }

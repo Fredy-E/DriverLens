@@ -34,6 +34,9 @@ fn main() {
             "open_report",
             "export_report",
             "get_report",
+            "get_notebook",
+            "save_device_note",
+            "clear_notebook",
         ]),
     );
     tauri_build::try_build(attributes).expect("failed to run tauri-build");

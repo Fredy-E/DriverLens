@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-save-device-note"
+description = "Enables the save_device_note command without any pre-configured scope."
+commands.allow = ["save_device_note"]
+
+[[permission]]
+identifier = "deny-save-device-note"
+description = "Denies the save_device_note command without any pre-configured scope."
+commands.deny = ["save_device_note"]

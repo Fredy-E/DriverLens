@@ -66,6 +66,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::collector::{self, Runner, SharedChild};
+use crate::notebook::NotebookStore;
 use crate::report;
 
 /// Stable error vocabulary shared by every IPC command. The `code` values are
@@ -85,6 +86,10 @@ pub enum ScanErrorCode {
     /// A filtered-export selection that does not match the current report
     /// (unknown device id, or more ids than the device cap).
     InvalidSelection,
+    /// `save_device_note` for a key that is not in the notebook store.
+    UnknownKey,
+    /// A notebook note beyond the 4000-character cap.
+    NoteTooLong,
     Io,
 }
 
@@ -100,6 +105,8 @@ impl ScanErrorCode {
             ScanErrorCode::TooLarge => "too_large",
             ScanErrorCode::InvalidReport => "invalid_report",
             ScanErrorCode::InvalidSelection => "invalid_selection",
+            ScanErrorCode::UnknownKey => "unknown_key",
+            ScanErrorCode::NoteTooLong => "note_too_long",
             ScanErrorCode::Io => "io",
         }
     }
@@ -286,6 +293,10 @@ pub struct ScanManager {
     dialogs: Option<Arc<dyn ReportDialogs>>,
     scans_dir: PathBuf,
     deadline: Duration,
+    /// Optional notebook store (extension E-01). Attached once during setup;
+    /// when present, an accepted scan records one observation per device —
+    /// best-effort, never failing or blocking the scan.
+    notebook: Mutex<Option<Arc<NotebookStore>>>,
 }
 
 impl ScanManager {
@@ -305,7 +316,25 @@ impl ScanManager {
             dialogs: config.dialogs,
             scans_dir: config.scans_dir,
             deadline: config.deadline,
+            notebook: Mutex::new(None),
         }
+    }
+
+    /// Attaches the notebook store used to record accepted scans. Production
+    /// wires this once in `lib.rs` before the manager is managed; tests may
+    /// omit it entirely (recording is then a no-op).
+    pub fn attach_notebook(&self, store: Arc<NotebookStore>) {
+        *self
+            .notebook
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(store);
+    }
+
+    fn notebook_store(&self) -> Option<Arc<NotebookStore>> {
+        self.notebook
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
     }
 
     /// The only shape the frontend receives.
@@ -348,10 +377,13 @@ impl ScanManager {
         let runner = self.runner.clone();
         let scans_dir = self.scans_dir.clone();
         let deadline = self.deadline;
+        let notebook = self.notebook_store();
         let spawned = std::thread::Builder::new()
             .name(format!("driverlens-scan-{generation}"))
             .spawn(move || {
-                run_scan_thread(inner, runner, scans_dir, deadline, generation, cancel, slot);
+                run_scan_thread(
+                    inner, runner, scans_dir, deadline, generation, cancel, slot, notebook,
+                );
             });
 
         if let Err(_spawn_error) = spawned {
@@ -616,6 +648,7 @@ fn filter_report_devices(value: &Value, ids: &[String]) -> Result<Value, ScanErr
 
 /// The scan thread body. Never panics out: a panic is converted into an
 /// `io` error state so the machine can never get stuck in `Running`.
+#[allow(clippy::too_many_arguments)]
 fn run_scan_thread(
     inner: Arc<Mutex<Inner>>,
     runner: Arc<dyn Runner>,
@@ -624,6 +657,7 @@ fn run_scan_thread(
     generation: u64,
     cancel: Arc<AtomicBool>,
     slot: SharedChild,
+    notebook: Option<Arc<NotebookStore>>,
 ) {
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         perform_scan(
@@ -639,7 +673,7 @@ fn run_scan_thread(
         Ok(result) => result,
         Err(_) => (Err(ScanError::io()), (Vec::new(), Vec::new())),
     };
-    finish(inner, generation, result, tails);
+    finish(inner, generation, result, tails, notebook);
 }
 
 /// One scan attempt: prepare the private directory, choose a fresh output
@@ -689,38 +723,55 @@ fn perform_scan(
 }
 
 /// Applies a finished scan to the state machine — only if it is still the
-/// current generation (defense against stale threads).
+/// current generation (defense against stale threads). After the state
+/// transition is published (and the lock released), an accepted report is
+/// recorded into the notebook store, best-effort: any notebook error is
+/// logged as a static message and the scan result is unaffected.
 fn finish(
     inner: Arc<Mutex<Inner>>,
     generation: u64,
     result: Result<Value, ScanError>,
     tails: (Vec<u8>, Vec<u8>),
+    notebook: Option<Arc<NotebookStore>>,
 ) {
-    let mut guard = inner
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-    if guard.generation != generation {
-        return;
+    let accepted = {
+        let mut guard = inner
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if guard.generation != generation {
+            return;
+        }
+        let accepted = match result {
+            Ok(value) => {
+                guard.state = ScanState::Complete;
+                guard.error = None;
+                guard.report = Some(value.clone());
+                Some(value)
+            }
+            Err(error) if error.code == ScanErrorCode::Cancelled => {
+                guard.state = ScanState::Cancelled;
+                guard.error = None;
+                None
+            }
+            Err(error) => {
+                guard.state = ScanState::Error;
+                guard.error = Some(error);
+                None
+            }
+        };
+        guard.started_ms = None;
+        guard.cancel = None;
+        guard.child = None;
+        guard.last_tails = Some(tails);
+        accepted
+    };
+
+    if let (Some(value), Some(store)) = (accepted, notebook) {
+        if store.record_report(&value).is_err() {
+            // Static message only: never report contents, device ids, paths.
+            eprintln!("driverlens: notebook recording skipped (store unavailable)");
+        }
     }
-    match result {
-        Ok(value) => {
-            guard.state = ScanState::Complete;
-            guard.error = None;
-            guard.report = Some(value);
-        }
-        Err(error) if error.code == ScanErrorCode::Cancelled => {
-            guard.state = ScanState::Cancelled;
-            guard.error = None;
-        }
-        Err(error) => {
-            guard.state = ScanState::Error;
-            guard.error = Some(error);
-        }
-    }
-    guard.started_ms = None;
-    guard.cancel = None;
-    guard.child = None;
-    guard.last_tails = Some(tails);
 }
 
 impl Inner {
@@ -2059,5 +2110,81 @@ mod tests {
         assert_eq!(device["notes"][0].as_str(), Some(hostile_note));
         assert_eq!(value["filterNote"], FILTERED_EXPORT_NOTE);
         crate::report::validate_report_str(&text).expect("hostile filtered export must revalidate");
+    }
+
+    // -- notebook recording (extension E-01) ---------------------------------
+
+    #[test]
+    fn accepted_scan_records_one_notebook_observation_per_device() {
+        let runner = success_runner();
+        let (manager, _) = manager_with(
+            runner.clone(),
+            Arc::new(MockDialogs::cancelling()),
+            Duration::from_secs(5),
+        );
+        let store = Arc::new(crate::notebook::NotebookStore::new(scratch_dir(
+            "scan-notebook",
+        )));
+        manager.attach_notebook(store.clone());
+
+        manager.start_scan().expect("scan accepted");
+        let terminal = manager.wait_for_terminal_for_test(Duration::from_secs(10));
+        assert_eq!(terminal.state, ScanState::Complete);
+
+        // Recording runs on the scan thread after the terminal state is
+        // published; wait (bounded) for it to land.
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let view = loop {
+            let view = store.view();
+            if view.devices.len() == 3 {
+                break view;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "notebook never recorded the accepted scan"
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        };
+        for device in &view.devices {
+            assert_eq!(device.observations.len(), 1, "one sighting, one observation");
+        }
+        let keys: Vec<&str> = view.devices.iter().map(|d| d.key.as_str()).collect();
+        assert!(keys.contains(&"SAMPLE001") && keys.contains(&"SAMPLE003"));
+
+        // A cancelled scan afterwards records nothing new (no accepted report).
+        runner.set_behavior(SpawnBehavior::NeverExits);
+        manager.start_scan().expect("scan 2 accepted");
+        await_spawn(&runner);
+        manager.cancel_scan();
+        let terminal = manager.wait_for_terminal_for_test(Duration::from_secs(10));
+        assert_eq!(terminal.state, ScanState::Cancelled);
+        for device in &store.view().devices {
+            assert_eq!(device.observations.len(), 1, "cancel records nothing");
+        }
+    }
+
+    #[test]
+    fn notebook_store_failure_never_fails_or_blocks_the_scan() {
+        let runner = success_runner();
+        let (manager, _) = manager_with(
+            runner.clone(),
+            Arc::new(MockDialogs::cancelling()),
+            Duration::from_secs(5),
+        );
+        // A store whose directory path is an existing file: every write fails.
+        let scratch = scratch_dir("scan-notebook-broken");
+        let blocked = scratch.join("blocked");
+        std::fs::write(&blocked, b"file").expect("write blocker file");
+        manager.attach_notebook(Arc::new(crate::notebook::NotebookStore::new(blocked)));
+
+        manager.start_scan().expect("scan accepted");
+        let terminal = manager.wait_for_terminal_for_test(Duration::from_secs(10));
+        assert_eq!(
+            terminal.state,
+            ScanState::Complete,
+            "a notebook store failure must never fail a scan"
+        );
+        assert_eq!(terminal.device_count, Some(3));
+        assert!(manager.current_report().is_some(), "report still accepted");
     }
 }

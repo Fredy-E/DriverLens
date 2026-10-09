@@ -39,13 +39,24 @@ Development (to build, not needed by end users): Node.js 22+, Rust with the `aar
 - **Scan output** is a generation-named temp file (`scan-<generation>-<random>.json`) written by the collector into the app-owned `scans` directory under the app's local data directory (`%LOCALAPPDATA%\com.fredye.driverlens\scans` on Windows) — outside the repository and outside OneDrive-synced folders. It is read into memory and **deleted after every terminal path** (success, failure, cancel, timeout); leftovers from crashed runs are purged best-effort on the next scan. The accepted report lives in memory until it is exported.
 - **Import** reads exactly the file chosen in the native open dialog; on success the parsed, validated report becomes the in-memory current report.
 - **Export** writes exactly the path chosen in the native save dialog: the full stored report, or — for a filtered export — exactly the selected devices, in report order, stamped with a `filterNote`.
+- **Notebook store** (extension E-01) is the app's own local history file — see "USB Device Notebook" below. It lives under the app-owned local data directory and is never uploaded.
 - Nothing else is written, and no report leaves the machine.
+
+## USB Device Notebook (extension E-01)
+
+- **What it is.** A local notebook of the devices past scans have seen, with a per-device note. It exists so you can answer "what changed on this machine?" — e.g. a driver version moving `14.0.1 -> 14.0.2` on a given date.
+- **What is stored** (per device, keyed by the report's privacy digest `id`): name, VID/PID, bus, device class, `firstSeen`/`lastSeen` timestamps, the driver/status observation history (`version`, `provider`, `windowsStatus`, `errorCode`), and your note text. Never raw instance IDs, paths, usernames, or hostnames.
+- **Where.** `%LOCALAPPDATA%\com.fredye.driverlens\notebook\notebook.json` — the app-owned local data directory, outside the repository and outside OneDrive-synced folders. Written atomically (temp file + rename) and **never uploaded**; nothing leaves this PC.
+- **Caps.** At most **500 devices** (over the cap the least-recently-seen device is evicted), at most **100 observations per device** (oldest dropped first), consecutive-identical sightings collapse into the existing observation (a new observation is recorded only when version / provider / windowsStatus / errorCode changes; first/last-seen stay bookkeeping), and notes are capped at **4000 characters**.
+- **Recording is best-effort and never fails a scan.** On scan success the accepted report is appended to the notebook on the scan thread; any store error is logged as a static message and the scan result is unaffected.
+- **Viewing and editing.** The app's view switcher opens the Notebook view: recorded devices with their current driver version, Windows status, last-seen time and the latest version change; selecting a device opens its note editor. "Clear notebook" removes the store file, behind an explicit confirm step. Every control is keyboard operable.
+- **Corruption behavior (honest).** A missing, unreadable, oversized or unparsable store reads as empty; the next successful write replaces it atomically. There is no sync and no backup — clearing is final.
 
 ## Scan lifecycle and failed-scan recovery
 
 - States: `idle → running → complete / error / cancelled`. The scan runs on a dedicated thread with a **120 s deadline**; a duplicate start is refused with `busy`; cancel kills exactly the owned collector process and leaves the previous report untouched.
 - **A failed scan accepts no report and keeps the previous report unchanged** — recovery is simply trying again; every terminal state permits a later scan.
-- Failures map to ten stable codes with static, actionable guidance in the UI, e.g.:
+- Failures map to twelve stable codes with static, actionable guidance in the UI, e.g.:
   - `timeout` → "The scan timed out before the collector finished. Nothing was changed — try again."
   - `executable_missing` → install PowerShell 7 (or set `DRIVERLENS_POWERSHELL`) and scan again.
   - `exit_failure`, `output_missing`, `too_large` (20 MiB cap), `invalid_report`, `io`.

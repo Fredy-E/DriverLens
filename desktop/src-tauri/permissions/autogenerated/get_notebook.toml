@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-notebook"
+description = "Enables the get_notebook command without any pre-configured scope."
+commands.allow = ["get_notebook"]
+
+[[permission]]
+identifier = "deny-get-notebook"
+description = "Denies the get_notebook command without any pre-configured scope."
+commands.deny = ["get_notebook"]

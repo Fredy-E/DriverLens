@@ -1,11 +1,14 @@
-//! The six DriverLens IPC commands (Task 7 boundary, extended) plus the
+//! The nine DriverLens IPC commands (Task 7 boundary, extended) plus the
 //! production dialog implementation (Task 7's native-dialog strategy).
 //!
 //! # The boundary
 //!
-//! Exactly six custom commands exist, all snake_case:
+//! Exactly nine custom commands exist, all snake_case:
 //! `scan_devices`, `get_scan_state`, `cancel_scan`, `open_report`,
-//! `export_report`, `get_report`. `export_report` takes exactly ONE optional
+//! `export_report`, `get_report`, plus the USB Device Notebook commands
+//! `get_notebook` (no args, read-only), `save_device_note` (`key`, `text` —
+//! a store lookup key and the note text, nothing else) and `clear_notebook`
+//! (no args). `export_report` takes exactly ONE optional
 //! argument — `ids: string[]`, a list of device digests to export (Task 10
 //! filtered export), validated against the current report and used only for
 //! set membership. Nothing else is parameterized: the JS side cannot supply
@@ -44,11 +47,13 @@
 //! mutex, so they are cheap synchronous commands.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use serde_json::Value;
 use tauri::State;
 use tauri_plugin_dialog::DialogExt;
 
+use crate::notebook::{NotebookStore, NotebookView, OkResponse};
 use crate::scan::{ExportSummary, ReportDialogs, ScanError, ScanManager, ScanSnapshot};
 
 /// Starts a scan of this PC. Returns the running snapshot, or the `busy`
@@ -106,6 +111,44 @@ pub async fn export_report(
 #[tauri::command]
 pub fn get_report(state: State<'_, ScanManager>) -> Option<Value> {
     state.current_report()
+}
+
+/// The USB Device Notebook view (extension E-01): every stored device with
+/// its sighting bookkeeping, observation history, derived field changes and
+/// note. Read-only and argument-free — it cannot record, clear or influence
+/// anything, and it never errors (a missing or unreadable store reads as
+/// empty). Nothing here is ever uploaded; the store lives only on this PC.
+#[tauri::command]
+pub fn get_notebook(state: State<'_, Arc<NotebookStore>>) -> NotebookView {
+    state.view()
+}
+
+/// Saves the note for one existing notebook device. `key` must be a device
+/// key already in the store (unknown keys are refused with `unknown_key`),
+/// and `text` is capped at 4000 characters (`note_too_long`). Neither value
+/// is a path, a command, or a destination — the key is used only as a map
+/// lookup.
+#[tauri::command]
+pub fn save_device_note(
+    state: State<'_, Arc<NotebookStore>>,
+    key: String,
+    text: String,
+) -> Result<OkResponse, ScanError> {
+    state
+        .save_note(&key, &text)
+        .map_err(ScanError::from)
+        .map(|()| OkResponse { ok: true })
+}
+
+/// Removes the notebook store from this PC (idempotent — clearing an empty
+/// notebook is not an error). The store is local-only; nothing is uploaded
+/// and nothing outside the app-owned notebook directory is touched.
+#[tauri::command]
+pub fn clear_notebook(state: State<'_, Arc<NotebookStore>>) -> Result<OkResponse, ScanError> {
+    state
+        .clear()
+        .map_err(ScanError::from)
+        .map(|()| OkResponse { ok: true })
 }
 
 /// Production [`ReportDialogs`]: Tauri's native dialogs via the Rust plugin

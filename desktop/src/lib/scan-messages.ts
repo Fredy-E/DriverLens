@@ -63,6 +63,9 @@ const ERROR_GUIDANCE: Record<ScanErrorCode, string> = {
   io: "An unexpected operating-system error interrupted the scan. Try again.",
   invalid_selection:
     "The export selection does not match the current report. Reopen the report and export again.",
+  unknown_key:
+    "No device with that key exists in the notebook. Run a scan so the device is recorded, then save the note again.",
+  note_too_long: "The note is longer than the 4000 character limit. Shorten it and save again.",
 };
 
 /** Human guidance for a terminal scan-error code. Total over the closed set. */

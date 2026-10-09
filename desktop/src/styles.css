@@ -250,6 +250,7 @@ body {
 button:focus-visible,
 input:focus-visible,
 select:focus-visible,
+textarea:focus-visible,
 a:focus-visible {
   outline: 2px solid var(--dl-accent);
   outline-offset: 3px;
@@ -444,6 +445,122 @@ a:focus-visible {
   }
 
   .evidence {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* View switcher + USB Device Notebook (extension E-01). */
+.viewnav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.viewnav__label {
+  font-size: 0.78rem;
+  color: var(--dl-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.notebook__layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(280px, 1.05fr);
+  gap: 14px;
+  margin-top: 0.75rem;
+}
+
+.notebook__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 420px;
+  overflow: auto;
+}
+
+.notebook__device {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: var(--dl-text);
+  background: var(--dl-input-bg);
+  border: 1px solid var(--dl-border);
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem;
+  cursor: pointer;
+}
+
+.notebook__device:hover {
+  border-color: var(--dl-accent);
+}
+
+.notebook__device[aria-pressed="true"] {
+  border-color: var(--dl-accent);
+  background: var(--dl-th-bg);
+}
+
+.notebook__device-name {
+  font-weight: 600;
+}
+
+.notebook__device-meta {
+  color: var(--dl-muted);
+  font-size: 0.85rem;
+}
+
+.notebook__change {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+.notebook__detail {
+  background: #0f1c31;
+  border: 1px solid var(--dl-border);
+  border-radius: 9px;
+  padding: 0.75rem 0.9rem;
+}
+
+.notebook__textarea {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+}
+
+.notebook__note-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.notebook__confirm {
+  border: 1px solid var(--dl-warn-border);
+  background: var(--dl-warn-bg);
+  border-radius: 9px;
+  padding: 0.75rem 0.9rem;
+  margin-top: 0.75rem;
+}
+
+.notebook__confirm .app__note {
+  color: var(--dl-warn-text);
+}
+
+.notebook__actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 760px) {
+  .notebook__layout {
     grid-template-columns: 1fr;
   }
 }
