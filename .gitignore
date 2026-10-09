@@ -3,3 +3,5 @@ test-fixtures/
 *.local.json
 node_modules/
 *.log
+# CI run outputs (desktop-verify workflow: PE/resources check log) — never committed
+ci-logs/

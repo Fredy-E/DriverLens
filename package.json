@@ -8,9 +8,10 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "npm run test:launcher && npm run test:integration",
+    "test": "npm run test:launcher && npm run test:integration && npm run test:saved-report",
     "test:launcher": "node tests/launcher.test.cjs",
     "test:integration": "node tests/integration.test.cjs",
+    "test:saved-report": "node tests/saved-report.test.cjs",
     "test:browser": "node tests/browser.test.cjs"
   },
   "devDependencies": {

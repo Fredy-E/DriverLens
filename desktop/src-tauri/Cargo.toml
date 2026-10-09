@@ -1,0 +1,39 @@
+[package]
+name = "driverlens-desktop"
+version = "0.1.0"
+description = "DriverLens desktop edition - Tauri shell for the read-only device and driver inventory."
+edition = "2021"
+
+[lib]
+# The `_lib` suffix keeps the library name unique so it cannot collide with
+# the binary name on Windows (see https://github.com/rust-lang/cargo/issues/8519).
+name = "driverlens_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# E2E-only embedded WebDriver server (feature `wdio-e2e`): OPTIONAL so it is
+# never part of the default or release build graph. Registered in `lib.rs`
+# only under the feature. See docs/NATIVE-E2E.md.
+tauri-plugin-wdio-webdriver = { version = "=1.5.0", optional = true }
+
+[features]
+default = []
+# Test-only feature: builds the native WebDriver E2E binary — the embedded
+# WebDriver server plus scripted synthetic collectors and fake dialogs
+# (src/e2e_harness.rs). Must never be enabled for a release build; the E2E
+# binary is a separate artifact (desktop/src-tauri/target-e2e, built by
+# docs/NATIVE-E2E.md).
+wdio-e2e = ["dep:tauri-plugin-wdio-webdriver"]
+
+[dev-dependencies]
+# The `test` feature exposes `tauri::test` (MockRuntime + IPC helpers) for
+# `cargo test` only. Dev-dependencies are not part of the production build
+# graph, so the production binary is unaffected by this feature.
+tauri = { version = "2", features = ["test"] }

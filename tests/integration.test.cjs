@@ -19,6 +19,7 @@
 'use strict';
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
+const { createHash } = require('node:crypto');
 const http = require('node:http');
 const net = require('node:net');
 const fs = require('node:fs');
@@ -154,7 +155,12 @@ function snapshotRepo() {
   const reportPath = path.join(ROOT, 'driver-report.json');
   return {
     topLevel: fs.readdirSync(ROOT).sort(),
-    report: fs.existsSync(reportPath) ? fs.readFileSync(reportPath, 'utf8') : null,
+    // Digest the report instead of embedding its contents: the snapshot
+    // compares the repository before/after, so a saved report must survive
+    // byte-for-byte. Hashing necessarily reads the report bytes — what must
+    // never happen is storing report plaintext in the snapshot or writing it
+    // to diagnostics; only the digest (or null) is kept.
+    report: fs.existsSync(reportPath) ? createHash('sha256').update(fs.readFileSync(reportPath)).digest('hex') : null,
   };
 }
 
@@ -494,7 +500,7 @@ test('injected collector success: scan returns the synthetic report, /report ser
   assert.equal(again.status, 200, 'the busy lock must reset after a successful scan');
   assert.deepEqual(again.body, fixtureBytes);
   assert.equal(fs.existsSync(harnessSuccess.reportPath), true, 'the synthetic report must land in the contained temp directory');
-  assert.equal(fs.existsSync(path.join(ROOT, 'driver-report.json')), false, 'no report may be written into the repository');
+  assert.deepEqual(snapshotRepo(), repoBefore, 'contained collectors must preserve repository files and any existing report');
 });
 
 test('pending collector: concurrent scan is 409, guards precede the busy lock, lock resets', { timeout: 60000 }, async () => {

@@ -1,0 +1,286 @@
+# =============================================================================
+# DriverLens desktop verification - ARM64 build + native E2E (Task 16).
+#
+# Purpose: separate ARCHITECTURE BUILDS from HARDWARE VALIDATION. This
+# workflow proves compilation + fixture/synthetic test evidence on a real
+# Windows 11 ARM64 runner. It does not and must not claim:
+#   - hardware validation, real device inventories, or physical-device classes
+#     (no CI step collects a real inventory; the E2E suite drives scripted
+#     synthetic collectors only - desktop/docs/NATIVE-E2E.md);
+#   - installer/bundle correctness (CI builds --no-bundle only - see below);
+#   - x64 coverage (no x64 job exists in this file - see the x64 note below).
+#
+# PRECONDITION - PUBLIC REPOSITORY ONLY (hard requirement):
+#   The `windows-11-arm` runner label is available for FREE in PUBLIC
+#   repositories only; in a private repository the workflow HARD-FAILS
+#   ("This label will not work in private repositories"). If the repo is
+#   private, do not enable this workflow. Source: GitHub changelog
+#   2025-04-14 + hosted-runners reference, recorded in
+#   driverlens-v2/notes/CI-NATIVE-TESTING-NOTES.md section 1.
+#
+# HARD RULES (Task 16):
+#   - Every step below is REQUIRED. There is no `continue-on-error` anywhere:
+#     a soft failure is not release acceptance. If a step is unsupported or
+#     flaky on the runner, fix the runner requirement (see
+#     driverlens-v2/notes/CI-WIRING-NOTES.md, "If Tier 2 fails on the
+#     runner"), never mask it.
+#   - No step may collect a real device inventory; no artifact may ever
+#     contain a report. Uploaded artifacts are logs + test outputs only.
+#   - CI builds use `--no-bundle` only: the NSIS installer stays OUT of CI
+#     (a first bundle auto-downloads the NSIS toolset from GitHub with no
+#     retry; installer behavior is validated by the local Task 14/15 process,
+#     not by this workflow - INSTALLER-PREREQS-NOTES.md section 7).
+#   - x64 is a FUTURE target: no x64 build/fixture/native-UI job may be added
+#     here until the x64 Rust target + runner setup are separately approved
+#     and actually exercised (Task 16: "Treat x86 as a later explicit target,
+#     not a promised verified release").
+#
+# SCOPE: desktop/** (plus this file). The browser edition's workflow
+#   (.github/workflows/verify.yml) is UNCHANGED and keeps running on every
+#   push; this workflow additionally invokes the three root legacy suites
+#   (launcher / integration / saved-report) so the browser-edition
+#   invariants are checked alongside a desktop-only change.
+#
+# FIRST-RUN STATUS: nothing in this file has ever executed (publication is a
+#   separate owner gate). See driverlens-v2/notes/CI-WIRING-NOTES.md for the
+#   guaranteed-vs-unverified matrix.
+# =============================================================================
+
+name: desktop-verify
+
+on:
+  push:
+    paths:
+      - 'desktop/**'
+      - '.github/workflows/desktop-verify.yml'
+  pull_request:
+    paths:
+      - 'desktop/**'
+      - '.github/workflows/desktop-verify.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Tier 1 (required): ARM64 compile + frontend checks + static bundle checks
+  # + PE-machine / resources-parity on the built release exe + the root
+  # browser-edition legacy suites.
+  # ---------------------------------------------------------------------------
+  tier1-build-and-static:
+    name: Tier 1 - ARM64 build, static checks, browser-edition invariants
+    runs-on: windows-11-arm
+    timeout-minutes: 120   # generous first-run headroom (cold cargo build); tighten after a green run
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Host architecture and Node.js version (require 22+)
+        shell: pwsh
+        run: |
+          [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
+          node --version
+          rustc --version
+          cargo --version
+          node -e "if (Number(process.versions.node.split('.')[0]) < 22) { throw 'Node.js 22+ is required; found ' + process.versions.node }"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Install desktop dependencies (npm ci, lockfile-only)
+        shell: pwsh
+        run: npm --prefix desktop ci --no-fund --no-audit
+
+      - name: Rust tests (cargo test, default features - no wdio-e2e)
+        shell: pwsh
+        run: cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked
+
+      - name: Typecheck (tsc --noEmit)
+        shell: pwsh
+        run: npm --prefix desktop run typecheck
+
+      - name: Frontend tests (vitest run)
+        shell: pwsh
+        run: npm --prefix desktop run test
+
+      - name: Frontend build (vite build -> desktop/dist)
+        shell: pwsh
+        run: npm --prefix desktop run build
+
+      - name: Bundle / CSP / no-browser-helper static tests (node:test)
+        shell: pwsh
+        run: node desktop/tests/bundle.test.cjs
+
+      - name: Build release exe (aarch64-pc-windows-msvc, --no-bundle)
+        shell: pwsh
+        run: npm --prefix desktop run tauri -- build --target aarch64-pc-windows-msvc --no-bundle
+
+      # Runs AFTER the release build: proves the CI-built exe is a native
+      # ARM64 PE (0xAA64) and that the bundled collector resource is
+      # byte-identical to the reviewed repo source (resources parity).
+      - name: PE machine + resources parity (built release exe)
+        shell: pwsh
+        run: |
+          $check = @'
+          "use strict";
+          // Post-build checks for the Tier 1 release exe (Task 16 CI wiring):
+          //   1. PE machine must be 0xAA64 (native ARM64, not x64/emulated).
+          //   2. The bundled collector resource must be byte-identical to the
+          //      reviewed repo source (resources parity), mirroring the local
+          //      build inspection.
+          // Writes ci-logs/pe-resources-check.json (a log; never a report).
+          // PE_CHECK_OUT overrides the output path (used to exercise this
+          // script locally without writing into the repo tree).
+          const fs = require("node:fs");
+          const path = require("node:path");
+          const crypto = require("node:crypto");
+
+          const ROOT = process.env.GITHUB_WORKSPACE || process.cwd();
+          const RELEASE = path.join(ROOT, "desktop", "src-tauri", "target", "aarch64-pc-windows-msvc", "release");
+          const EXE = path.join(RELEASE, "driverlens-desktop.exe");
+          const BUILT_RESOURCE = path.join(RELEASE, "resources", "Collect-DriverLens.ps1");
+          const SOURCE_RESOURCE = path.join(ROOT, "Collect-DriverLens.ps1");
+          const OUT = process.env.PE_CHECK_OUT || path.join(ROOT, "ci-logs", "pe-resources-check.json");
+
+          const result = { checked_at_utc: new Date().toISOString(), exe: {}, resources: {}, ok: false, failures: [] };
+          const sha256 = (p) => crypto.createHash("sha256").update(fs.readFileSync(p)).digest("hex");
+
+          try {
+            const buf = fs.readFileSync(EXE);
+            result.exe.path = EXE;
+            result.exe.size_bytes = buf.length;
+            if (buf.length < 0x40 || buf.readUInt16LE(0) !== 0x5A4D) throw new Error("not a PE file (missing MZ magic)");
+            const e_lfanew = buf.readUInt32LE(0x3C);
+            if (e_lfanew + 6 > buf.length) throw new Error("e_lfanew out of bounds: " + e_lfanew);
+            if (buf.readUInt32LE(e_lfanew) !== 0x00004550) throw new Error("missing PE signature");
+            const machine = buf.readUInt16LE(e_lfanew + 4);
+            result.exe.pe_machine = "0x" + machine.toString(16).toUpperCase().padStart(4, "0");
+            result.exe.expected = "0xAA64";
+            if (machine !== 0xAA64) throw new Error("PE machine " + result.exe.pe_machine + " is not the expected 0xAA64");
+            result.exe.ok = true;
+          } catch (err) {
+            result.exe.ok = false;
+            result.failures.push("exe: " + err.message);
+          }
+
+          try {
+            result.resources.built_path = BUILT_RESOURCE;
+            result.resources.built_sha256 = sha256(BUILT_RESOURCE);
+            result.resources.source_path = SOURCE_RESOURCE;
+            result.resources.source_sha256 = sha256(SOURCE_RESOURCE);
+            result.resources.release_dir_listing = fs.readdirSync(path.dirname(BUILT_RESOURCE)).sort();
+            result.resources.parity = result.resources.built_sha256 === result.resources.source_sha256;
+            if (!result.resources.parity) throw new Error("bundled resource is not byte-identical to the repo source");
+            result.resources.ok = true;
+          } catch (err) {
+            result.resources.ok = false;
+            result.failures.push("resources: " + err.message);
+          }
+
+          result.ok = result.exe.ok === true && result.resources.ok === true;
+          fs.mkdirSync(path.dirname(OUT), { recursive: true });
+          fs.writeFileSync(OUT, JSON.stringify(result, null, 2) + "\n");
+          console.log(JSON.stringify(result, null, 2));
+          if (!result.ok) {
+            console.error("FAIL: " + result.failures.join(" | "));
+            process.exit(1);
+          }
+          console.log("OK: release exe is PE machine 0xAA64; bundled collector resource is byte-identical to the repo source.");
+          '@
+          $checkPath = Join-Path $env:RUNNER_TEMP 'pe-resources-check.cjs'
+          [System.IO.File]::WriteAllText($checkPath, $check)
+          node $checkPath
+
+      # Browser-edition invariants: the same three suites and step names as
+      # .github/workflows/verify.yml (which stays unchanged). They run here
+      # too so a desktop-only change cannot bypass them.
+      - name: Launcher invariants (Node)
+        shell: pwsh
+        run: node tests/launcher.test.cjs
+
+      - name: Server integration tests (Node; spawned servers, synthetic collectors only)
+        shell: pwsh
+        run: node tests/integration.test.cjs
+
+      - name: Saved-report preservation test (Node; contained scratch copy, synthetic report only)
+        shell: pwsh
+        run: node tests/saved-report.test.cjs
+
+      # Evidence collection only: runs after a failure so the PE/resources log
+      # is still uploaded; it cannot make a failed job pass (no continue-on-error).
+      - name: Upload CI logs (no reports, ever)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tier1-ci-logs
+          path: ci-logs/**
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # Tier 2 (required): feature-gated E2E binary + native WebDriver suite.
+  # Embedded provider (no external driver, no msedgedriver on any platform);
+  # scripted synthetic collectors only - a real inventory cannot occur.
+  # This job is a real gate: no continue-on-error. If it cannot run on the
+  # runner, fix the runner requirement - never mask the step.
+  # ---------------------------------------------------------------------------
+  tier2-native-e2e:
+    name: Tier 2 - native E2E (embedded WebDriver, synthetic only)
+    runs-on: windows-11-arm
+    timeout-minutes: 120   # generous first-run headroom (cold cargo build + suite)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Runner diagnostics (Node floor assert; Edge/Edge Driver, informational)
+        shell: pwsh
+        run: |
+          [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
+          node --version
+          rustc --version
+          cargo --version
+          node -e "if (Number(process.versions.node.split('.')[0]) < 22) { throw 'Node.js 22+ is required; found ' + process.versions.node }"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          # Informational only - the embedded provider needs NO external driver.
+          # Logged for the first-run record of the runner image
+          # (driverlens-v2/notes/CI-NATIVE-TESTING-NOTES.md, section 1 + Unknowns).
+          "EDGEWEBDRIVER=$env:EDGEWEBDRIVER"
+          $candidates = @()
+          if ($env:EDGEWEBDRIVER) { $candidates += (Join-Path $env:EDGEWEBDRIVER 'msedgedriver.exe') }
+          $candidates += "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe"
+          $candidates += "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe"
+          foreach ($p in $candidates) {
+            try { "$p -> " + (Get-Item $p).VersionInfo.ProductVersion } catch { "$p -> not found (informational only)" }
+          }
+
+      - name: Install desktop dependencies (npm ci, lockfile-only)
+        shell: pwsh
+        run: npm --prefix desktop ci --no-fund --no-audit
+
+      # E2E feature build per desktop/docs/NATIVE-E2E.md: the wdio-e2e feature
+      # compiles the embedded WebDriver server into a SEPARATE artifact under
+      # src-tauri/target-e2e, so the verified release artifact is never
+      # overwritten. The doc's `CARGO_TARGET_DIR="$PWD/src-tauri/target-e2e"`
+      # (run from desktop/) is expressed here as an absolute step env.
+      - name: Build E2E binary (--features wdio-e2e; CARGO_TARGET_DIR=src-tauri/target-e2e)
+        shell: pwsh
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/desktop/src-tauri/target-e2e
+        run: npm --prefix desktop run tauri -- build --target aarch64-pc-windows-msvc --no-bundle --features wdio-e2e
+
+      - name: Native E2E suite (npm run test:native)
+        shell: pwsh
+        run: npm --prefix desktop run test:native
+
+      # Evidence collection only (logs + test outputs). Deliberately NOT
+      # uploaded: desktop/e2e/.run/import-report.json and export-report.json
+      # (synthetic, report-shaped files) - "no reports, ever".
+      - name: Upload test outputs + logs (no reports, ever)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tier2-native-e2e-outputs
+          path: |
+            desktop/e2e/.run/results.json
+            desktop/e2e/.run/shots/**
+            desktop/logs/**
+          if-no-files-found: ignore
+          retention-days: 14

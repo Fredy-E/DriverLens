@@ -1,0 +1,5 @@
+node_modules/
+dist/
+# Native E2E runtime artifacts (desktop/e2e/.run: scenario file, exported
+# files, results.json, screenshots) — recreated by every test:native run.
+e2e/.run/

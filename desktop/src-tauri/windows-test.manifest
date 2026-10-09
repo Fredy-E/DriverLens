@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+  Test-only application manifest.
+
+  DriverLens test binaries link Windows GUI code through the Tauri shell
+  machinery (menus/dialogs); that code imports `TaskDialogIndirect` from
+  comctl32, which only resolves through the comctl32 version 6 side-by-side
+  assembly declared in an application manifest. tauri-build embeds a manifest
+  into the shipped application binary, but rustc embeds none into test
+  binaries — without this file `cargo test` binaries die at load with
+  STATUS_ENTRYPOINT_NOT_FOUND (0xc0000139).
+
+  build.rs embeds exactly this manifest into test targets only
+  (`/MANIFEST:EMBED` + `/MANIFESTINPUT:`), so production binaries keep the
+  full tauri-build manifest. Contents mirror tauri-build's
+  windows-app-manifest.xml dependency block.
+-->
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <dependency>
+    <dependentAssembly>
+      <assemblyIdentity
+        type="win32"
+        name="Microsoft.Windows.Common-Controls"
+        version="6.0.0.0"
+        processorArchitecture="*"
+        publicKeyToken="6595b64144ccf1df"
+        language="*"
+      />
+    </dependentAssembly>
+  </dependency>
+</assembly>

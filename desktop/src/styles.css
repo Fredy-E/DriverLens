@@ -1,0 +1,449 @@
+/* DriverLens desktop — development shell styles.
+   Palette and accessibility model ported from the browser edition via
+   notes/UI-PARITY-NOTES.md §3: dark blue tokens (--bg #080e19, --panel
+   #101a2b, --border #263957, --text #dce6f8, --muted #95a8c8, --accent
+   #72adff, --blue #266deb), focus-visible outlines, reduced-motion query. */
+
+:root {
+  color-scheme: dark;
+  --dl-bg: #080e19;
+  --dl-panel: #101a2b;
+  --dl-border: #263957;
+  --dl-text: #dce6f8;
+  --dl-muted: #95a8c8;
+  --dl-accent: #72adff;
+  --dl-blue: #266deb;
+  --dl-th-bg: #14243b;
+  --dl-button-bg: #172740;
+  --dl-badge-bg: #162d4e;
+  --dl-badge-border: #335686;
+  --dl-badge-text: #9ac6ff;
+  --dl-warn-bg: #332b1b;
+  --dl-warn-border: #66532b;
+  --dl-warn-text: #f2cc89;
+  --dl-error-text: #f2b8b8;
+  --dl-input-bg: #111d30;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--dl-bg);
+  color: var(--dl-text);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.app {
+  min-height: 100%;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.app__header h1 {
+  margin: 0 0 0.25rem;
+  font-size: 1.6rem;
+  letter-spacing: -0.02em;
+}
+
+.app__tagline {
+  margin: 0;
+  color: var(--dl-muted);
+}
+
+.app__panel {
+  background: var(--dl-panel);
+  border: 1px solid var(--dl-border);
+  border-left: 4px solid var(--dl-blue);
+  border-radius: 9px;
+  padding: 1.25rem 1.5rem;
+}
+
+.app__panel h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.15rem;
+}
+
+.app__panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 0.5rem;
+}
+
+.app__panel-head h2 {
+  margin: 0;
+}
+
+/* Buttons: real chrome (browser edition parity: secondary #172740/#324c73,
+   primary #2364d7/#3c7bf0; hover keeps the blue accent). */
+.button {
+  font: inherit;
+  padding: 0.55rem 1rem;
+  border-radius: 7px;
+  border: 1px solid #324c73;
+  background: var(--dl-button-bg);
+  color: var(--dl-text);
+  cursor: pointer;
+}
+
+.button:hover:not(:disabled) {
+  background: #213854;
+  border-color: var(--dl-accent);
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.button--primary {
+  background: #2364d7;
+  border-color: #3c7bf0;
+  color: #ffffff;
+}
+
+.button--primary:hover:not(:disabled) {
+  background: #2f70e0;
+  border-color: var(--dl-accent);
+}
+
+/* Scan controls (Task 9). */
+.scan__buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0.5rem 0 0.75rem;
+}
+
+.scan__spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--dl-border);
+  border-top-color: var(--dl-accent);
+  animation: dl-spin 0.9s linear infinite;
+}
+
+@keyframes dl-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.scan__status {
+  margin: 0;
+  color: var(--dl-muted);
+  font-size: 0.92rem;
+}
+
+.scan__status--error {
+  color: var(--dl-error-text);
+}
+
+.scan__code {
+  color: var(--dl-muted);
+  font-family: Consolas, "Cascadia Mono", monospace;
+}
+
+/* Report actions toolbar (Task 10). */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0.5rem 0 0.75rem;
+}
+
+.app__note {
+  margin: 0.75rem 0 0;
+  color: var(--dl-muted);
+  font-size: 0.92rem;
+}
+
+.app__meta {
+  margin: 0 0 0.25rem;
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 0.9rem;
+}
+
+.chip,
+.badge {
+  display: inline-block;
+  padding: 0.1rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid var(--dl-badge-border);
+  background: var(--dl-badge-bg);
+  color: var(--dl-badge-text);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.badge--warn {
+  background: var(--dl-warn-bg);
+  border-color: var(--dl-warn-border);
+  color: var(--dl-warn-text);
+}
+
+.app__table-wrap {
+  overflow: auto;
+  margin-top: 0.75rem;
+}
+
+.app__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.app__table th,
+.app__table td {
+  text-align: left;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--dl-border);
+  vertical-align: top;
+}
+
+.app__table th {
+  background: var(--dl-th-bg);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.app__table tr:last-child td {
+  border-bottom: none;
+}
+
+.app__sub {
+  display: block;
+  color: var(--dl-muted);
+  font-size: 0.85rem;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--dl-accent);
+  outline-offset: 3px;
+}
+
+.app__footer {
+  margin-top: auto;
+  color: var(--dl-muted);
+  font-size: 0.9rem;
+}
+
+.app__footer p {
+  margin: 0;
+}
+
+@media (max-width: 760px) {
+  .app {
+    padding: 24px 16px;
+  }
+
+  .app__header h1 {
+    font-size: 1.35rem;
+  }
+
+  .app__panel {
+    padding: 15px;
+  }
+
+  .app__table th,
+  .app__table td {
+    padding: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto !important;
+  }
+
+  .scan__spinner {
+    animation: none;
+  }
+}
+
+/* Search / filter toolbar (Task 9). */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+  margin: 0.5rem 0 0.25rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field--search {
+  flex: 1 1 260px;
+}
+
+.field__label {
+  font-size: 0.78rem;
+  color: var(--dl-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.input {
+  font: inherit;
+  color: var(--dl-text);
+  background: var(--dl-input-bg);
+  border: 1px solid var(--dl-border);
+  border-radius: 7px;
+  padding: 0.45rem 0.6rem;
+}
+
+.input::placeholder {
+  color: #8094b4;
+}
+
+.input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Report stats (Task 9; browser parity: 4 columns). */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin: 0.5rem 0 0.25rem;
+}
+
+.stats__item {
+  background: #0f1c31;
+  border: 1px solid var(--dl-border);
+  border-radius: 9px;
+  padding: 0.6rem 0.75rem;
+}
+
+.stats__value {
+  display: block;
+  font-size: 1.45rem;
+  color: #d7e8ff;
+}
+
+.stats__label {
+  color: var(--dl-muted);
+  font-size: 0.82rem;
+}
+
+/* Device table extras (Task 9). */
+.app__empty {
+  color: var(--dl-muted);
+  text-align: center;
+  padding: 22px 14px;
+}
+
+.muted {
+  color: var(--dl-muted);
+}
+
+.mono {
+  font-family: Consolas, "Cascadia Mono", monospace;
+}
+
+.table__toggle {
+  margin-top: 0.4rem;
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--dl-accent);
+  background: transparent;
+  border: 1px dashed var(--dl-border);
+  border-radius: 6px;
+  padding: 0.15rem 0.5rem;
+  cursor: pointer;
+}
+
+.table__toggle:hover {
+  border-color: var(--dl-accent);
+}
+
+.device-detail td {
+  background: #0d1829;
+}
+
+.evidence {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 0.9rem;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.evidence dt {
+  color: var(--dl-muted);
+}
+
+.evidence dd {
+  margin: 0;
+}
+
+.notes {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+/* Pagination (bounded rendering; Task 9). */
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+}
+
+.pager__status {
+  color: var(--dl-muted);
+  font-size: 0.85rem;
+}
+
+.app__note--error {
+  color: var(--dl-error-text);
+}
+
+@media (max-width: 760px) {
+  .stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .evidence {
+    grid-template-columns: 1fr;
+  }
+}

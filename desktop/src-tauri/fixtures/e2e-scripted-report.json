@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "e2eScriptedFake": "driverlens-wdio-e2e",
+  "generatedAt": "2026-10-08T00:00:00Z",
+  "system": { "os": "E2E synthetic machine", "build": "0000", "architecture": "ARM64" },
+  "warnings": [],
+  "devices": [
+    {
+      "id": "E2E001",
+      "name": "Scripted Synthetic Adapter",
+      "deviceClass": "Ports",
+      "bus": "USB",
+      "vid": "0403",
+      "pid": "6001",
+      "provider": "Synthetic provider",
+      "version": "1.0",
+      "inf": "synthetic-a.inf",
+      "signed": true,
+      "packageTargets": ["ARM64", "x64"],
+      "architecture": "ARM64",
+      "kernelBinary": "synthetic-a.sys",
+      "service": "SyntheticSerial",
+      "status": "observed",
+      "windowsStatus": "OK",
+      "errorCode": 0,
+      "notes": []
+    },
+    {
+      "id": "E2E002",
+      "name": "Scripted Legacy Peripheral",
+      "deviceClass": "USB",
+      "bus": "USB",
+      "provider": "Synthetic provider",
+      "version": "0.9",
+      "inf": "synthetic-b.inf",
+      "signed": false,
+      "packageTargets": ["x64"],
+      "architecture": "x64",
+      "kernelBinary": "synthetic-b.sys",
+      "status": "review",
+      "windowsStatus": "Error",
+      "errorCode": 10,
+      "notes": ["Windows device error 10"]
+    },
+    {
+      "id": "E2E003",
+      "name": "Scripted System Root Component",
+      "deviceClass": "System",
+      "bus": "ACPI",
+      "provider": "Synthetic OS provider",
+      "version": "1.0",
+      "signed": true,
+      "packageTargets": [],
+      "architecture": "Unknown",
+      "kernelBinary": "",
+      "status": "observed",
+      "windowsStatus": "OK",
+      "errorCode": 0,
+      "notes": []
+    }
+  ]
+}

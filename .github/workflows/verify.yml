@@ -43,6 +43,10 @@ jobs:
         shell: pwsh
         run: node tests/integration.test.cjs
 
+      - name: Saved-report preservation test (Node; contained scratch copy, synthetic report only)
+        shell: pwsh
+        run: node tests/saved-report.test.cjs
+
       - name: Install Playwright bundled Chromium (x64 build under Windows ARM64)
         shell: pwsh
         run: npx playwright install chromium
