@@ -618,6 +618,13 @@ fn dialogs_unavailable() -> ScanError {
     )
 }
 
+/// Cap on the sanitized default file name, in characters, INCLUDING the
+/// `.html` extension.
+const MAX_EXPORT_FILE_NAME_CHARS: usize = 120;
+
+/// Extension the export dialog's default file name always carries.
+const HTML_EXTENSION: &str = ".html";
+
 /// Sanitize the renderer-suggested default file name for the HTML save
 /// dialog. The result is cosmetic only (the dialog's own default); the
 /// written destination always comes from the user's dialog choice.
@@ -626,24 +633,43 @@ fn dialogs_unavailable() -> ScanError {
 ///   the suggested name can never read as a path;
 /// - whitespace and leading/trailing dots are trimmed; an empty remainder
 ///   falls back to `driverlens-report`;
-/// - the base name is capped at 120 characters;
+/// - the FINAL name, `.html` extension included, is capped at
+///   [`MAX_EXPORT_FILE_NAME_CHARS`] characters: the stem is truncated so the
+///   extension always fits;
 /// - `.html` is appended when the name does not already end with it
-///   (case-insensitive).
+///   (case-insensitive); an existing suffix keeps the caller's spelling.
 fn sanitize_export_file_name(suggested: &str) -> String {
     let cleaned: String = suggested
         .chars()
         .filter(|ch| !matches!(ch, '/' | '\\' | ':' | '\0') && !ch.is_control())
         .collect();
     let trimmed = cleaned.trim().trim_matches('.');
-    let mut base = if trimmed.is_empty() {
-        "driverlens-report".to_owned()
+    let name = if trimmed.is_empty() {
+        "driverlens-report"
     } else {
-        trimmed.chars().take(120).collect()
+        trimmed
     };
-    if !base.to_ascii_lowercase().ends_with(".html") {
-        base.push_str(".html");
+
+    // Split an existing `.html` suffix (case-insensitive) so it is neither
+    // doubled nor truncated away; the caller's spelling is preserved.
+    let (stem, extension) = match name.len().checked_sub(HTML_EXTENSION.len()) {
+        Some(cut) if name.to_ascii_lowercase().ends_with(HTML_EXTENSION) => {
+            (&name[..cut], &name[cut..])
+        }
+        _ => (name, ""),
+    };
+
+    // Truncate the stem so stem + extension fits the FINAL-name cap.
+    let mut file_name: String = stem
+        .chars()
+        .take(MAX_EXPORT_FILE_NAME_CHARS - HTML_EXTENSION.len())
+        .collect();
+    if extension.is_empty() {
+        file_name.push_str(HTML_EXTENSION);
+    } else {
+        file_name.push_str(extension);
     }
-    base
+    file_name
 }
 
 fn now_ms() -> u64 {
@@ -2393,9 +2419,27 @@ mod tests {
         // Control characters are stripped too.
         assert_eq!(sanitize_export_file_name("a\u{7}b\u{0}c"), "abc.html");
 
-        // The base name is capped (before the extension is appended).
+        // The cap bounds the FINAL name, extension included (regression: it
+        // used to bound only the base, letting the result reach 125 chars).
         let long = sanitize_export_file_name(&"n".repeat(500));
-        assert_eq!(long.len(), 125);
+        assert!(
+            long.len() <= 120,
+            "the final name (extension included) must fit the 120-char cap: {}",
+            long.len()
+        );
+        assert_eq!(long, format!("{}.html", "n".repeat(115)));
         assert!(long.ends_with(".html"));
+
+        // A caller name that already carries the extension is capped the
+        // same way (the caller's spelling of `.html` is preserved).
+        let long_with_extension = sanitize_export_file_name(&format!("{}.html", "m".repeat(500)));
+        assert!(long_with_extension.len() <= 120);
+        assert_eq!(long_with_extension.len(), 120);
+        assert!(long_with_extension.ends_with(".html"));
+
+        // The cap counts characters, not bytes: a multibyte stem is safe.
+        let long_multibyte = sanitize_export_file_name(&"é".repeat(500));
+        assert!(long_multibyte.chars().count() <= 120);
+        assert!(long_multibyte.ends_with(".html"));
     }
 }

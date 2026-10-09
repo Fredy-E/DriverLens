@@ -119,7 +119,7 @@ describe("native adapter — command names and no-argument invocation", () => {
     expect(lastCall()).toEqual(["export_report", { ids: [] }]);
   });
 
-  it("uses exactly the six agreed command names and no others", async () => {
+  it("the original six wrappers still invoke exactly their six command names (newer wrappers have their own suites)", async () => {
     invokeMock.mockResolvedValue(null);
     await scanDevices().catch(() => undefined);
     await getScanState().catch(() => undefined);

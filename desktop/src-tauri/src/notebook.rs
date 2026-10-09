@@ -24,6 +24,11 @@
 //!   `version` / `provider` / `windowsStatus` / `errorCode` differ from the
 //!   previous stored observation (a first sighting always records one);
 //!   `firstSeen` / `lastSeen` are bookkeeping and update on every sighting;
+//! - report-sourced text (the key, name, vid/pid/bus/deviceClass, and each
+//!   observation's version/provider/windowsStatus) is truncated to
+//!   [`MAX_STORED_TEXT_CHARS`] characters — this is what keeps every store
+//!   this app writes below the read-side bound [`MAX_STORE_BYTES`] (see the
+//!   arithmetic there);
 //! - notes are at most [`MAX_NOTE_CHARS`] characters (rejected beyond that).
 //!
 //! # Failure policy
@@ -65,6 +70,15 @@ pub const MAX_OBSERVATIONS_PER_DEVICE: usize = 100;
 /// Hard cap on note length, in characters.
 pub const MAX_NOTE_CHARS: usize = 4000;
 
+/// Hard cap on report-sourced text stored per field, in characters. Report
+/// strings are opaque evidence; truncating them on write is what bounds
+/// every stored field — and with it the serialized store (see
+/// [`MAX_STORE_BYTES`]) — while staying far above anything the collector
+/// emits. For the key (an opaque digest), truncation could only ever merge
+/// adversarial keys that agree on their first [`MAX_STORED_TEXT_CHARS`]
+/// characters.
+pub const MAX_STORED_TEXT_CHARS: usize = 128;
+
 /// Store file name inside the notebook directory.
 pub const NOTEBOOK_FILE_NAME: &str = "notebook.json";
 
@@ -72,8 +86,29 @@ pub const NOTEBOOK_FILE_NAME: &str = "notebook.json";
 const TEMP_FILE_NAME: &str = "notebook.json.tmp";
 
 /// Read-side sanity bound: a store file larger than this is treated as empty
-/// rather than parsed (it can never be produced by this app's own caps).
-const MAX_STORE_BYTES: u64 = 8 * 1024 * 1024;
+/// rather than parsed.
+///
+/// Writer and reader are consistent by construction: the write-side caps
+/// bound every serialized store strictly below this value. Worst case with
+/// every cap hit at once (each item is an upper bound):
+///
+/// - one stored string field is ≤ [`MAX_STORED_TEXT_CHARS`] = 128 chars and
+///   JSON escaping costs at most 6 bytes per char (`\uXXXX`), so its value
+///   is ≤ 128 × 6 + 2 = 770 B, and ≤ 800 B with its name/punctuation/indent;
+/// - device: key ×2 (map key + field) + name + vid + pid + bus +
+///   deviceClass = 7 string fields ≤ 5,600 B; firstSeen/lastSeen ≤ 80 B;
+/// - device: observations ≤ 100 × (3 string fields ≤ 2,400 B + at/errorCode/
+///   braces/indentation ≤ 200 B) = 100 × 2,600 B = 260,000 B;
+/// - device: note ≤ [`MAX_NOTE_CHARS`] = 4,000 chars × 6 B = 24,000 B,
+///   plus ≤ 100 B name/punctuation;
+/// - device: remaining braces/commas/indentation ≤ 200 B;
+///   ⇒ one device ≤ 289,980 B ⇒ [`MAX_NOTEBOOK_DEVICES`] = 500 devices
+///   ≤ 145,000,000 B (≈ 138.3 MiB), plus ≤ 1 KiB of container overhead.
+///
+/// 256 MiB comfortably exceeds that ≈ 138.3 MiB worst case (≈ 1.85×). A
+/// larger file was not produced by this app's write path; a corrupt or
+/// oversized read still fails safe (it reads as empty).
+const MAX_STORE_BYTES: u64 = 256 * 1024 * 1024;
 
 /// One recorded sighting of a device's driver/status tuple.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -251,9 +286,12 @@ impl NotebookStore {
         };
         self.mutate(|notebook| {
             for device in devices {
-                let Some(key) = device.get("id").and_then(Value::as_str) else {
+                let Some(raw_key) = device.get("id").and_then(Value::as_str) else {
                     continue;
                 };
+                // Clamp before the key becomes BOTH the map key and a stored
+                // field, so the two always agree (notes are looked up by it).
+                let key = clamp_stored_text(raw_key);
                 let observation = Observation {
                     at: now,
                     version: field_str(device, "version"),
@@ -261,7 +299,7 @@ impl NotebookStore {
                     windows_status: field_str(device, "windowsStatus"),
                     error_code: device.get("errorCode").and_then(Value::as_i64),
                 };
-                match notebook.devices.get_mut(key) {
+                match notebook.devices.get_mut(&key) {
                     Some(record) => {
                         // Identity fields follow the latest sighting.
                         record.name = field_str(device, "name").unwrap_or_default();
@@ -292,9 +330,9 @@ impl NotebookStore {
                     }
                     None => {
                         notebook.devices.insert(
-                            key.to_owned(),
+                            key.clone(),
                             DeviceRecord {
-                                key: key.to_owned(),
+                                key,
                                 name: field_str(device, "name").unwrap_or_default(),
                                 vid: field_str(device, "vid"),
                                 pid: field_str(device, "pid"),
@@ -398,11 +436,19 @@ impl NotebookStore {
     }
 }
 
+/// Truncates report-sourced text to [`MAX_STORED_TEXT_CHARS`] characters.
+/// The stored value is display evidence only; the clamp is what keeps every
+/// stored field (and therefore the serialized store) bounded — see
+/// [`MAX_STORE_BYTES`].
+fn clamp_stored_text(text: &str) -> String {
+    text.chars().take(MAX_STORED_TEXT_CHARS).collect()
+}
+
 fn field_str(device: &Value, field: &str) -> Option<String> {
     device
         .get(field)
         .and_then(Value::as_str)
-        .map(str::to_owned)
+        .map(clamp_stored_text)
 }
 
 /// Evicts the least-recently-seen devices until the cap holds. Ties (equal
@@ -885,6 +931,126 @@ mod tests {
         assert_eq!(store.save_note("A", "x"), Err(NotebookError::UnknownKey));
         // Idempotent: clearing again is not an error.
         store.clear().expect("second clear succeeds");
+    }
+
+    // -- read bound / writer-reader consistency ------------------------------
+
+    #[test]
+    fn oversized_store_reads_as_empty_fail_safe() {
+        // Above the read bound nothing is parsed (fail-safe); the write path
+        // cannot produce such a file (see MAX_STORE_BYTES).
+        let dir = scratch_dir("notebook-oversized");
+        let path = dir.join(NOTEBOOK_FILE_NAME);
+        let file = std::fs::File::create(&path).unwrap();
+        // Sparse: sets the logical size without writing real bytes.
+        file.set_len(MAX_STORE_BYTES + 1).unwrap();
+        drop(file);
+        let store = NotebookStore::new(dir);
+        assert!(store.view().devices.is_empty(), "oversized reads as empty");
+    }
+
+    #[test]
+    fn a_store_at_the_worst_case_boundary_still_loads() {
+        // Practical worst case: every structural cap hit at once (500
+        // devices, 100 observations each, 4,000-char notes) with every
+        // report-sourced string at the MAX_STORED_TEXT_CHARS clamp. This is
+        // the largest store a benign history reaches; it must LOAD (it used
+        // to exceed the old 8 MiB read bound and read as empty).
+        let dir = scratch_dir("notebook-boundary");
+        let mut devices = BTreeMap::new();
+        for device_index in 0..MAX_NOTEBOOK_DEVICES {
+            let key = format!("{device_index:04}");
+            let observations: Vec<Observation> = (0..MAX_OBSERVATIONS_PER_DEVICE)
+                .map(|observation_index| Observation {
+                    at: 1_000 + observation_index as u64,
+                    version: Some("v".repeat(MAX_STORED_TEXT_CHARS)),
+                    provider: Some("p".repeat(MAX_STORED_TEXT_CHARS)),
+                    windows_status: Some("s".repeat(MAX_STORED_TEXT_CHARS)),
+                    error_code: Some(observation_index as i64),
+                })
+                .collect();
+            devices.insert(
+                key.clone(),
+                DeviceRecord {
+                    key,
+                    name: "n".repeat(MAX_STORED_TEXT_CHARS),
+                    vid: Some("v".repeat(MAX_STORED_TEXT_CHARS)),
+                    pid: Some("p".repeat(MAX_STORED_TEXT_CHARS)),
+                    bus: Some("b".repeat(MAX_STORED_TEXT_CHARS)),
+                    device_class: Some("c".repeat(MAX_STORED_TEXT_CHARS)),
+                    first_seen: 1_000,
+                    last_seen: 2_000,
+                    observations,
+                    note: "x".repeat(MAX_NOTE_CHARS),
+                },
+            );
+        }
+        let notebook = Notebook {
+            version: NOTEBOOK_SCHEMA_VERSION,
+            updated_at: 2_000,
+            devices,
+        };
+        save_atomic(&dir, &notebook).expect("boundary store write");
+
+        let size = std::fs::metadata(dir.join(NOTEBOOK_FILE_NAME))
+            .unwrap()
+            .len();
+        assert!(
+            size > 8 * 1024 * 1024,
+            "a representative boundary store exceeds the old 8 MiB bound: {size}"
+        );
+        assert!(
+            size <= MAX_STORE_BYTES,
+            "the writer stays within the read bound: {size}"
+        );
+
+        let loaded = load_from_dir(&dir);
+        assert_eq!(
+            loaded.devices.len(),
+            MAX_NOTEBOOK_DEVICES,
+            "a store at the worst-case boundary must load, not read as empty"
+        );
+        let first = &loaded.devices["0000"];
+        assert_eq!(first.observations.len(), MAX_OBSERVATIONS_PER_DEVICE);
+        assert_eq!(first.note.chars().count(), MAX_NOTE_CHARS);
+    }
+
+    #[test]
+    fn over_long_report_text_is_clamped_on_write() {
+        let (store, dir) = store("clamp");
+        let mut device = device_json("A", "1.0");
+        device["id"] = serde_json::json!("k".repeat(500));
+        device["name"] = serde_json::json!("n".repeat(500));
+        device["provider"] = serde_json::json!("p".repeat(500));
+        store
+            .record_report_at(&report_with(vec![device]), 1_000)
+            .unwrap();
+
+        let clamped_key = "k".repeat(MAX_STORED_TEXT_CHARS);
+        let view = store.view();
+        assert_eq!(view.devices.len(), 1);
+        assert_eq!(view.devices[0].key, clamped_key, "the key is clamped");
+        assert_eq!(
+            view.devices[0].name.chars().count(),
+            MAX_STORED_TEXT_CHARS,
+            "the name is clamped"
+        );
+        let provider = view.devices[0]
+            .current
+            .provider
+            .clone()
+            .expect("provider stored");
+        assert_eq!(provider.chars().count(), MAX_STORED_TEXT_CHARS);
+
+        // The clamped key stays the lookup key for notes, and the clamp is
+        // what was persisted (it survives a fresh store instance).
+        store
+            .save_note(&clamped_key, "note")
+            .expect("clamped key is addressable");
+        let reloaded = NotebookStore::new(dir);
+        let device = &reloaded.view().devices[0];
+        assert_eq!(device.key, clamped_key);
+        assert_eq!(device.note, "note");
     }
 
     // -- view shape / ordering ------------------------------------------------
