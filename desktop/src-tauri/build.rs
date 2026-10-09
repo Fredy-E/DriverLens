@@ -2,7 +2,7 @@
 //!
 //! Task 7 boundary: registered custom commands in Tauri v2 are callable from
 //! every window/webview by default — unless the application generates explicit
-//! command permissions through `AppManifest::commands`. Declaring the six
+//! command permissions through `AppManifest::commands`. Declaring the ten
 //! DriverLens commands here makes `tauri-build`
 //!
 //! 1. autogenerate one `allow-<command>` / `deny-<command>` permission pair
@@ -13,7 +13,7 @@
 //!    capability explicitly grants it to the calling window.
 //!
 //! The allowlist itself lives in `capabilities/default.json`, which grants the
-//! six `allow-...` permissions to the bundled `main` window only. Plugin
+//! ten `allow-...` permissions to the bundled `main` window only. Plugin
 //! capabilities (e.g. the dialog plugin) are resolved separately and are NOT
 //! part of this boundary.
 //!
@@ -33,6 +33,7 @@ fn main() {
             "cancel_scan",
             "open_report",
             "export_report",
+            "export_html_report",
             "get_report",
             "get_notebook",
             "save_device_note",

@@ -60,6 +60,8 @@ pub const SCENARIO_FILE_ENV: &str = "DRIVERLENS_E2E_SCENARIO_FILE";
 pub const OPEN_PATH_ENV: &str = "DRIVERLENS_E2E_OPEN_PATH";
 /// Fake save-dialog path environment variable.
 pub const SAVE_PATH_ENV: &str = "DRIVERLENS_E2E_SAVE_PATH";
+/// Fake HTML save-dialog path environment variable.
+pub const HTML_PATH_ENV: &str = "DRIVERLENS_E2E_HTML_PATH";
 /// Scan-deadline override environment variable (milliseconds).
 pub const TIMEOUT_MS_ENV: &str = "DRIVERLENS_E2E_TIMEOUT_MS";
 
@@ -309,5 +311,12 @@ impl ReportDialogs for EnvDialogs {
 
     fn pick_export_path(&self) -> Result<Option<PathBuf>, ScanError> {
         Ok(path_from_env(SAVE_PATH_ENV))
+    }
+
+    fn pick_export_html_path(&self, suggested_name: &str) -> Result<Option<PathBuf>, ScanError> {
+        // The suggested name is the OS dialog's cosmetic default only; the
+        // fake uses its env-configured path like the other dialogs.
+        let _ = suggested_name;
+        Ok(path_from_env(HTML_PATH_ENV))
     }
 }

@@ -1,7 +1,8 @@
 /**
- * Typed wrappers for the six DriverLens native commands (Task 7 boundary,
- * extended in Task 10 with a filtered-export selection and later with the
- * read-only current-report read).
+ * Typed wrappers for the ten DriverLens native commands (Task 7 boundary,
+ * extended in Task 10 with a filtered-export selection, later with the
+ * read-only current-report read, the USB Device Notebook commands, and the
+ * portable HTML report export).
  *
  * This module is the ONLY place the renderer talks to the native side, and it
  * deliberately exposes no way to influence what the native side does:
@@ -127,6 +128,24 @@ export async function exportReport(ids?: readonly string[]): Promise<ExportSumma
     return invoke<ExportSummary | null>("export_report");
   }
   return invoke<ExportSummary | null>("export_report", { ids: [...ids] });
+}
+
+/**
+ * Opens the NATIVE save dialog (Rust side) and writes one self-contained HTML
+ * document — built by the renderer from the validated current report — to the
+ * user-chosen path.
+ *
+ * `suggestedName` is only the dialog's default file name: the Rust side
+ * strips path separators and appends `.html` when missing, and the written
+ * destination is always the user's dialog choice. Resolves with the byte
+ * count, or `null` when the user cancelled; rejects with `ScanError`
+ * (`invalid_report` for an empty payload, `too_large` above the 8 MiB cap).
+ */
+export async function exportHtmlReport(
+  html: string,
+  suggestedName: string
+): Promise<ExportSummary | null> {
+  return invoke<ExportSummary | null>("export_html_report", { html, suggestedName });
 }
 
 /**

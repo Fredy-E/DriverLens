@@ -185,6 +185,20 @@ impl ScanError {
         Self::new(ScanErrorCode::InvalidSelection, message)
     }
 
+    /// Rejection of an empty HTML payload (a renderer bug; refused before the
+    /// dialog opens). Fixed template — never carries data.
+    pub fn html_empty() -> Self {
+        Self::new(ScanErrorCode::InvalidReport, "The HTML report is empty.")
+    }
+
+    /// Rejection of an HTML payload above [`MAX_HTML_BYTES`].
+    pub fn html_too_large() -> Self {
+        Self::new(
+            ScanErrorCode::TooLarge,
+            "The HTML report exceeds the 8 MiB limit.",
+        )
+    }
+
     pub fn io() -> Self {
         Self::new(ScanErrorCode::Io, "An unexpected operating system error occurred.")
     }
@@ -243,6 +257,11 @@ pub struct ExportSummary {
 /// export still revalidates as a v1 report.
 pub const FILTERED_EXPORT_NOTE: &str = "Filtered export from DriverLens";
 
+/// Hard cap on an exported HTML report document (8 MiB). The renderer builds
+/// the document; the cap bounds whatever it can ask to be written, and is
+/// enforced before the save dialog opens.
+pub const MAX_HTML_BYTES: usize = 8 * 1024 * 1024;
+
 /// Native file dialogs, abstracted so the command logic is testable without
 /// a window. `Ok(None)` means the user cancelled — a normal outcome, not an
 /// error. Production uses [`crate::commands::TauriReportDialogs`] (Tauri's
@@ -252,6 +271,11 @@ pub trait ReportDialogs: Send + Sync + 'static {
     fn pick_open_report(&self) -> Result<Option<PathBuf>, ScanError>;
     /// Native save dialog for exporting; `None` on user cancel.
     fn pick_export_path(&self) -> Result<Option<PathBuf>, ScanError>;
+    /// Native save dialog for the portable HTML export; `None` on user
+    /// cancel. `suggested_name` is only the dialog's default file name — it
+    /// is sanitized by [`sanitize_export_file_name`] before it reaches the
+    /// dialog and never influences the written destination.
+    fn pick_export_html_path(&self, suggested_name: &str) -> Result<Option<PathBuf>, ScanError>;
 }
 
 /// Construction parameters for [`ScanManager`].
@@ -511,6 +535,41 @@ impl ScanManager {
         }))
     }
 
+    /// Export a renderer-built, self-contained HTML document through the
+    /// native save dialog. The document comes from the frontend (built from
+    /// the validated report — redacted by default); this side enforces the
+    /// payload contract before the dialog ever opens:
+    ///
+    /// - an empty payload is refused with `invalid_report`;
+    /// - a payload above [`MAX_HTML_BYTES`] (8 MiB) is refused with
+    ///   `too_large`;
+    /// - `suggested_name` is sanitized ([`sanitize_export_file_name`]) and
+    ///   used ONLY as the dialog's default file name — the written path is
+    ///   always the user's dialog choice.
+    ///
+    /// `Ok(None)` = user cancelled. Returns the byte count written.
+    pub fn export_html_report(
+        &self,
+        html: String,
+        suggested_name: String,
+    ) -> Result<Option<ExportSummary>, ScanError> {
+        if html.is_empty() {
+            return Err(ScanError::html_empty());
+        }
+        if html.len() > MAX_HTML_BYTES {
+            return Err(ScanError::html_too_large());
+        }
+        let file_name = sanitize_export_file_name(&suggested_name);
+        let dialogs = self.dialogs().ok_or_else(dialogs_unavailable)?;
+        let Some(path) = dialogs.pick_export_html_path(&file_name)? else {
+            return Ok(None);
+        };
+        std::fs::write(&path, html.as_bytes()).map_err(|_| ScanError::io())?;
+        Ok(Some(ExportSummary {
+            bytes_written: html.len() as u64,
+        }))
+    }
+
     fn dialogs(&self) -> Option<Arc<dyn ReportDialogs>> {
         self.dialogs.clone()
     }
@@ -557,6 +616,34 @@ fn dialogs_unavailable() -> ScanError {
         ScanErrorCode::Io,
         "Native file dialogs are unavailable in this session.",
     )
+}
+
+/// Sanitize the renderer-suggested default file name for the HTML save
+/// dialog. The result is cosmetic only (the dialog's own default); the
+/// written destination always comes from the user's dialog choice.
+///
+/// - path separators (`/`, `\`, `:`) and control characters are removed, so
+///   the suggested name can never read as a path;
+/// - whitespace and leading/trailing dots are trimmed; an empty remainder
+///   falls back to `driverlens-report`;
+/// - the base name is capped at 120 characters;
+/// - `.html` is appended when the name does not already end with it
+///   (case-insensitive).
+fn sanitize_export_file_name(suggested: &str) -> String {
+    let cleaned: String = suggested
+        .chars()
+        .filter(|ch| !matches!(ch, '/' | '\\' | ':' | '\0') && !ch.is_control())
+        .collect();
+    let trimmed = cleaned.trim().trim_matches('.');
+    let mut base = if trimmed.is_empty() {
+        "driverlens-report".to_owned()
+    } else {
+        trimmed.chars().take(120).collect()
+    };
+    if !base.to_ascii_lowercase().ends_with(".html") {
+        base.push_str(".html");
+    }
+    base
 }
 
 fn now_ms() -> u64 {
@@ -2186,5 +2273,129 @@ mod tests {
         );
         assert_eq!(terminal.device_count, Some(3));
         assert!(manager.current_report().is_some(), "report still accepted");
+    }
+
+    // -- portable HTML export (E-03) -----------------------------------------
+
+    #[test]
+    fn export_html_report_writes_exactly_the_document_to_the_dialog_path() {
+        let export_dir = scratch_dir("export-html");
+        let export_path = export_dir.join("driverlens-report.html");
+        let dialogs = Arc::new(
+            MockDialogs::new(DialogBehavior::Cancel, DialogBehavior::Cancel)
+                .with_html(DialogBehavior::Pick(export_path.clone())),
+        );
+        let (manager, _) = manager_with(success_runner(), dialogs.clone(), Duration::from_secs(5));
+
+        let html = "<!doctype html><html lang=\"en\"><body>synthetic report</body></html>";
+        let summary = manager
+            .export_html_report(html.to_owned(), "driverlens-report".to_owned())
+            .expect("export succeeds")
+            .expect("dialog picked a destination");
+        assert_eq!(summary.bytes_written, html.len() as u64);
+        assert_eq!(
+            std::fs::read_to_string(&export_path).expect("written file"),
+            html
+        );
+        // The suggested name reaches the dialog sanitized (.html appended).
+        assert_eq!(
+            dialogs.last_html_name.lock().unwrap().as_deref(),
+            Some("driverlens-report.html")
+        );
+        assert_eq!(dialogs.html_calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn export_html_report_cancelled_dialog_is_none_and_writes_nothing() {
+        let dialogs = Arc::new(MockDialogs::new(DialogBehavior::Cancel, DialogBehavior::Cancel));
+        let (manager, _) = manager_with(success_runner(), dialogs.clone(), Duration::from_secs(5));
+
+        // The mock's HTML dialog defaults to cancel.
+        let outcome = manager
+            .export_html_report("<html></html>".to_owned(), "x".to_owned())
+            .expect("a cancelled dialog is not an error");
+        assert_eq!(outcome, None);
+        assert_eq!(dialogs.html_calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn export_html_report_refuses_empty_and_oversized_payloads_before_the_dialog() {
+        let dialogs = Arc::new(MockDialogs::new(DialogBehavior::Cancel, DialogBehavior::Cancel));
+        let (manager, _) = manager_with(success_runner(), dialogs.clone(), Duration::from_secs(5));
+
+        let empty = manager
+            .export_html_report(String::new(), "x".to_owned())
+            .expect_err("empty payload must be refused");
+        assert_eq!(empty.code, ScanErrorCode::InvalidReport);
+        assert_eq!(empty.message, "The HTML report is empty.");
+
+        let oversized = manager
+            .export_html_report("x".repeat(MAX_HTML_BYTES + 1), "x".to_owned())
+            .expect_err("oversized payload must be refused");
+        assert_eq!(oversized.code, ScanErrorCode::TooLarge);
+        assert_eq!(oversized.message, "The HTML report exceeds the 8 MiB limit.");
+
+        // Neither refusal may open the dialog.
+        assert_eq!(dialogs.html_calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn export_html_report_at_the_cap_reaches_the_dialog_and_failures_map_to_io() {
+        let dialogs = Arc::new(
+            MockDialogs::new(DialogBehavior::Cancel, DialogBehavior::Cancel)
+                .with_html(DialogBehavior::Fail),
+        );
+        let (manager, _) = manager_with(success_runner(), dialogs.clone(), Duration::from_secs(5));
+
+        // Exactly at the cap (not above): valid, reaches the dialog; a dialog
+        // failure is a plain io error.
+        let error = manager
+            .export_html_report("x".repeat(MAX_HTML_BYTES), "x".to_owned())
+            .expect_err("dialog failure must map to io");
+        assert_eq!(error.code, ScanErrorCode::Io);
+        assert_eq!(dialogs.html_calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn export_html_report_without_dialogs_refuses_cleanly() {
+        let bare = ScanManager::new(ScanManagerConfig {
+            runner: success_runner(),
+            dialogs: None,
+            scans_dir: scratch_dir("bare-html"),
+            deadline: Duration::from_secs(5),
+        });
+        let error = bare
+            .export_html_report("<html></html>".to_owned(), "x".to_owned())
+            .expect_err("no dialogs");
+        assert_eq!(error.code, ScanErrorCode::Io);
+    }
+
+    #[test]
+    fn sanitize_export_file_name_strips_separators_and_appends_html() {
+        assert_eq!(
+            sanitize_export_file_name("driverlens-report"),
+            "driverlens-report.html"
+        );
+        assert_eq!(sanitize_export_file_name("report.HTML"), "report.HTML");
+        assert_eq!(sanitize_export_file_name("  spaced name  "), "spaced name.html");
+        assert_eq!(sanitize_export_file_name(""), "driverlens-report.html");
+        assert_eq!(sanitize_export_file_name(".."), "driverlens-report.html");
+
+        for hostile in [r"C:\temp\evil.html", "/etc/passwd", r"..\..\evil", "C:evil"] {
+            let name = sanitize_export_file_name(hostile);
+            assert!(
+                !name.contains('/') && !name.contains('\\') && !name.contains(':'),
+                "separators must be stripped: {name}"
+            );
+            assert!(name.to_ascii_lowercase().ends_with(".html"));
+        }
+
+        // Control characters are stripped too.
+        assert_eq!(sanitize_export_file_name("a\u{7}b\u{0}c"), "abc.html");
+
+        // The base name is capped (before the extension is appended).
+        let long = sanitize_export_file_name(&"n".repeat(500));
+        assert_eq!(long.len(), 125);
+        assert!(long.ends_with(".html"));
     }
 }

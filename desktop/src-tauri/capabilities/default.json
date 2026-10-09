@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default capability: grants the nine DriverLens collector/report/notebook commands to the bundled main window only. No other window, and no remote origin, may invoke them.",
+  "description": "Default capability: grants the ten DriverLens collector/report/notebook commands to the bundled main window only. No other window, and no remote origin, may invoke them.",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -10,6 +10,7 @@
     "allow-cancel-scan",
     "allow-open-report",
     "allow-export-report",
+    "allow-export-html-report",
     "allow-get-report",
     "allow-get-notebook",
     "allow-save-device-note",

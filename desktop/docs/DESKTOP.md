@@ -8,7 +8,7 @@ Status: **in development** (record date 2026-10-08). This document covers the de
 |---|---|---|
 | What it is | Static page (`index.html` + `app.js`) served by a small local Node helper (`server.cjs`), launched by `Start-DriverLens.cmd` | Tauri 2.12.1 application: React 19 + TypeScript frontend, Rust core; NSIS installer (built; not yet published) |
 | Collector | The same self-authored `Collect-DriverLens.ps1`, run by the local helper | The same script, bundled inside the app and spawned directly by the Rust core |
-| Transport | Guarded loopback HTTP on `127.0.0.1:8781` | Tauri IPC — six narrow commands; no HTTP server in the app |
+| Transport | Guarded loopback HTTP on `127.0.0.1:8781` | Tauri IPC — ten narrow commands; no HTTP server in the app |
 | Status | Prototype; instructions in the root README | In development; see "Verified and not verified" below |
 
 Both editions share the same model: **read-only**, **local-only**, scans are user-initiated only (never at startup), and no telemetry.
@@ -40,6 +40,7 @@ Development (to build, not needed by end users): Node.js 22+, Rust with the `aar
 - **Import** reads exactly the file chosen in the native open dialog; on success the parsed, validated report becomes the in-memory current report.
 - **Export** writes exactly the path chosen in the native save dialog: the full stored report, or — for a filtered export — exactly the selected devices, in report order, stamped with a `filterNote`.
 - **Notebook store** (extension E-01) is the app's own local history file — see "USB Device Notebook" below. It lives under the app-owned local data directory and is never uploaded.
+- **HTML export** writes exactly the path chosen in the native save dialog: one self-contained HTML document (redacted by default — see "Portable HTML reports" below), capped at 8 MiB.
 - Nothing else is written, and no report leaves the machine.
 
 ## USB Device Notebook (extension E-01)
@@ -51,6 +52,13 @@ Development (to build, not needed by end users): Node.js 22+, Rust with the `aar
 - **Recording is best-effort and never fails a scan.** On scan success the accepted report is appended to the notebook on the scan thread; any store error is logged as a static message and the scan result is unaffected.
 - **Viewing and editing.** The app's view switcher opens the Notebook view: recorded devices with their current driver version, Windows status, last-seen time and the latest version change; selecting a device opens its note editor. "Clear notebook" removes the store file, behind an explicit confirm step. Every control is keyboard operable.
 - **Corruption behavior (honest).** A missing, unreadable, oversized or unparsable store reads as empty; the next successful write replaces it atomically. There is no sync and no backup — clearing is final.
+
+## Portable HTML reports
+
+- **What it is.** "Export HTML report…" (Report panel) turns the validated report currently displayed into **one self-contained HTML file** — doctype + utf-8 charset, a single inline stylesheet, print-friendly `@media print` rules. It contains no scripts and no external references of any kind, so it opens offline in any browser (or prints / saves to PDF) with nothing to load.
+- **Redacted by default.** Device digests (`id`) are replaced with stable ordinals — `D01`, `D02`, … in report order — and the file embeds a short "What is redacted" note. The explicit **"Include device identifiers"** checkbox (default OFF) keeps the digests instead and drops the note. The device table still shows names, classes, VID:PID, driver versions/providers, INF targets and notes — free text that may identify equipment — so a redacted export is local, pseudonymous data at best, never "anonymous" (see [DESKTOP-SECURITY.md](DESKTOP-SECURITY.md)).
+- **How to use.** Load a report (scan, import or sample) → click **Export HTML report…** → pick the destination in the native save dialog. The status line reports the byte count written ("HTML report exported — N bytes written."); a cancelled dialog changes nothing.
+- **Boundary.** The document is built in the renderer from the same validated report object the table renders; the Rust command (`export_html_report`) refuses an empty payload and anything above **8 MiB**, sanitizes the dialog's suggested file name (no path separators; `.html` appended when missing) and writes **only** the path the user chose in the dialog.
 
 ## Scan lifecycle and failed-scan recovery
 
@@ -121,6 +129,6 @@ All images below are of the real native interface. No real device data was ever 
 
 ## Verified and not verified (as of 2026-10-09)
 
-**Verified** (full battery PASS, re-run green after the 2026-10-09 collector fix; full record in [DESKTOP-VERIFICATION.md](DESKTOP-VERIFICATION.md) and the evidence logs): 169 frontend tests across 15 files, 77 Rust tests (67 unit + 10 IPC-boundary integration), 7 bundle/static checks, typecheck and build; a 12-case native WebDriver E2E run that drives the real compiled window and the real IPC boundary (all 12 passed; scripted synthetic collectors; re-run green post-fix); the release binary's PE machine type `0xAA64` and the NSIS installer's x86 stub (`0x014C`) — both as expected; the production installer built and inspected (1.82 MiB; unsigned); the app launches and opens no HTTP port; the post-fix release binary completed a **manual real scan** on this machine (277 devices, read-only, local — count only; DESKTOP-VERIFICATION.md §0).
+**Verified** (full battery PASS — re-run green on the merged E-01 + E-03 integration tree; full record in [DESKTOP-VERIFICATION.md](DESKTOP-VERIFICATION.md) and the evidence logs): 211 frontend tests across 20 files, 103 Rust tests (89 unit + 14 IPC-boundary integration), 7 bundle/static checks, typecheck and build; a 12-case native WebDriver E2E run that drives the real compiled window and the real IPC boundary (all 12 passed; scripted synthetic collectors; re-run green post-fix — not re-run for E-01/E-03); the release binary's PE machine type `0xAA64` and the NSIS installer's x86 stub (`0x014C`) — both as expected; the production installer built and inspected (1.82 MiB; unsigned); the app launches and opens no HTTP port; the post-fix release binary completed a **manual real scan** on this machine (277 devices, read-only, local — count only; DESKTOP-VERIFICATION.md §0).
 
 **Not verified**: **no clean-machine verification has happened** — install, first-launch, upgrade, uninstall, SmartScreen and missing-WebView2 behavior are all **UNVERIFIED** (no VM available in this environment); the installer is **unsigned** (`NotSigned`; no certificate configured) — expect a SmartScreen warning if it is downloaded via a browser; no **hardware matrix** beyond this one ARM64 machine (x86/x64 devices untested; the manual scan is a single-machine observation); the E2E suite cannot prove real hardware inventory or real collector behavior on a device. No desktop release is published.

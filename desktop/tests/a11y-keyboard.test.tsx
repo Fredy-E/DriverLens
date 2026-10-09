@@ -28,6 +28,7 @@ vi.mock("../src/adapters/native", async (importOriginal) => {
     cancelScan: vi.fn(),
     openReport: vi.fn(),
     exportReport: vi.fn(),
+    exportHtmlReport: vi.fn(),
   };
 });
 
@@ -87,6 +88,8 @@ describe("App — full keyboard tab order", () => {
       ["Load sample", () => screen.getByRole("button", { name: "Load sample" })],
       ["Export full", () => screen.getByRole("button", { name: "Export full" })],
       ["Export filtered", () => screen.getByRole("button", { name: "Export filtered (2)" })],
+      ["Export HTML report…", () => screen.getByRole("button", { name: "Export HTML report…" })],
+      ["Include device identifiers", () => screen.getByRole("checkbox", { name: "Include device identifiers" })],
       ["Search filter", () => screen.getByRole("searchbox", { name: "Search devices" })],
       ["Status filter", () => screen.getByRole("combobox", { name: "Review status" })],
       ["Architecture filter", () => screen.getByRole("combobox", { name: "Architecture" })],
@@ -134,6 +137,8 @@ describe("App — full keyboard tab order", () => {
       ["Load sample", () => screen.getByRole("button", { name: "Load sample" })],
       ["Export full", () => screen.getByRole("button", { name: "Export full" })],
       ["Export filtered", () => screen.getByRole("button", { name: "Export filtered (2)" })],
+      ["Export HTML report…", () => screen.getByRole("button", { name: "Export HTML report…" })],
+      ["Include device identifiers", () => screen.getByRole("checkbox", { name: "Include device identifiers" })],
       ["Search filter", () => screen.getByRole("searchbox", { name: "Search devices" })],
       ["Status filter", () => screen.getByRole("combobox", { name: "Review status" })],
       ["Architecture filter", () => screen.getByRole("combobox", { name: "Architecture" })],
@@ -259,6 +264,8 @@ describe("App — every interactive control has an accessible name", () => {
     expect(screen.getByRole("button", { name: "Load sample" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Export full" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Export filtered (2)" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Export HTML report…" })).toBeTruthy();
+    expect(screen.getByRole("checkbox", { name: "Include device identifiers" })).toBeTruthy();
     expect(screen.getByRole("searchbox", { name: "Search devices" })).toBeTruthy();
     expect(screen.getByRole("combobox", { name: "Review status" })).toBeTruthy();
     expect(screen.getByRole("combobox", { name: "Architecture" })).toBeTruthy();

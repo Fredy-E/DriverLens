@@ -367,8 +367,15 @@ pub(crate) enum DialogBehavior<T: Clone> {
 pub(crate) struct MockDialogs {
     pub open: Mutex<DialogBehavior<PathBuf>>,
     pub save: Mutex<DialogBehavior<PathBuf>>,
+    /// HTML save dialog behavior; defaults to cancel (a test opts into a
+    /// destination via `with_html`).
+    pub html: Mutex<DialogBehavior<PathBuf>>,
     pub open_calls: AtomicU32,
     pub save_calls: AtomicU32,
+    pub html_calls: AtomicU32,
+    /// The sanitized suggested file name the manager passed to the HTML save
+    /// dialog (the dialog's cosmetic default; never a destination).
+    pub last_html_name: Mutex<Option<String>>,
 }
 
 impl MockDialogs {
@@ -379,9 +386,18 @@ impl MockDialogs {
         Self {
             open: Mutex::new(open),
             save: Mutex::new(save),
+            html: Mutex::new(DialogBehavior::Cancel),
             open_calls: AtomicU32::new(0),
             save_calls: AtomicU32::new(0),
+            html_calls: AtomicU32::new(0),
+            last_html_name: Mutex::new(None),
         }
+    }
+
+    /// Set the HTML save dialog behavior (default: cancel).
+    pub(crate) fn with_html(self, html: DialogBehavior<PathBuf>) -> Self {
+        *self.html.lock().unwrap() = html;
+        self
     }
 
     pub(crate) fn cancelling() -> Self {
@@ -402,6 +418,16 @@ impl ReportDialogs for MockDialogs {
     fn pick_export_path(&self) -> Result<Option<PathBuf>, ScanError> {
         self.save_calls.fetch_add(1, Ordering::SeqCst);
         match &*self.save.lock().unwrap() {
+            DialogBehavior::Pick(path) => Ok(Some(path.clone())),
+            DialogBehavior::Cancel => Ok(None),
+            DialogBehavior::Fail => Err(ScanError::io()),
+        }
+    }
+
+    fn pick_export_html_path(&self, suggested_name: &str) -> Result<Option<PathBuf>, ScanError> {
+        self.html_calls.fetch_add(1, Ordering::SeqCst);
+        *self.last_html_name.lock().unwrap() = Some(suggested_name.to_owned());
+        match &*self.html.lock().unwrap() {
             DialogBehavior::Pick(path) => Ok(Some(path.clone())),
             DialogBehavior::Cancel => Ok(None),
             DialogBehavior::Fail => Err(ScanError::io()),
