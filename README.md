@@ -6,9 +6,17 @@
   <a href="https://github.com/Fredy-E/DriverLens/actions/workflows/verify.yml"><img src="https://github.com/Fredy-E/DriverLens/actions/workflows/verify.yml/badge.svg" alt="verify"></a>
   <img src="https://img.shields.io/badge/platform-Windows%20x86%20%7C%20x64%20%7C%20ARM64-29354b?style=flat-square" alt="Windows x86/x64/ARM64">
   <img src="https://img.shields.io/badge/read--only-no%20changes-c7a366?style=flat-square" alt="Read-only">
-  <img src="https://img.shields.io/badge/status-prototype-737373?style=flat-square" alt="Status: prototype">
+  <img src="https://img.shields.io/badge/web%20edition-concept%20prototype-737373?style=flat-square" alt="Web edition: concept prototype">
   <img src="https://img.shields.io/badge/license-MIT-737373?style=flat-square" alt="License: MIT">
 </p>
+
+<!-- prototype-status:start -->
+## Edition status
+
+**Browser/web edition: experimental concept prototype — idea exploration only.** It is a work-in-progress demo, not a finished or production-ready web product. Implemented features and tests demonstrate the concept, not complete functionality or real-world reliability.
+
+**Desktop edition: separately published ARM64 releases**, including [v0.2.0](https://github.com/Fredy-E/DriverLens/releases/tag/v0.2.0). The web-prototype label does not relabel or retract those releases. Their verified scope, unsigned-installer caveat and unverified clean-machine/hardware matrix remain documented below.
+<!-- prototype-status:end -->
 
 ## What this is
 
