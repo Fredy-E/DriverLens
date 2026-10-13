@@ -742,7 +742,7 @@ dependencies = [
 
 [[package]]
 name = "driverlens-desktop"
-version = "0.2.0"
+version = "0.3.0-preview.1"
 dependencies = [
  "serde",
  "serde_json",

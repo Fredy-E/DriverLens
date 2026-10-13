@@ -1,11 +1,13 @@
-/* DriverLens desktop — development shell styles.
-   Palette and accessibility model ported from the browser edition via
-   notes/UI-PARITY-NOTES.md §3: dark blue tokens (--bg #080e19, --panel
-   #101a2b, --border #263957, --text #dce6f8, --muted #95a8c8, --accent
-   #72adff, --blue #266deb), focus-visible outlines, reduced-motion query. */
+/* DriverLens desktop — workbench preview styles (portfolio-preview-1).
+   Preview tokens (--ui-*) sit alongside the locked --dl-* development tokens:
+   --dl-* keep their exact values so the Task 13 contrast/palette regressions
+   keep proving the shipped pairs; --ui-* carry the portfolio workbench family
+   (navy/blue, restrained gold) and honor the OS color scheme with no stored
+   preference. System fonts only; no libraries, CDN, telemetry or new native
+   commands. */
 
 :root {
-  color-scheme: dark;
+  color-scheme: dark light;
   --dl-bg: #080e19;
   --dl-panel: #101a2b;
   --dl-border: #263957;
@@ -23,6 +25,16 @@
   --dl-warn-text: #f2cc89;
   --dl-error-text: #f2b8b8;
   --dl-input-bg: #111d30;
+  /* Portfolio workbench tokens — dark defaults (AA-checked). */
+  --ui-bg: #0c1422;
+  --ui-surface: #142034;
+  --ui-ink: #eef4ff;
+  --ui-muted: #adbbd2;
+  --ui-accent: #8cbcff;
+  --ui-border: #31445f;
+  --ui-radius: 12px;
+  --ui-gold: #d8b96a;
+  --ui-panel: #142034;
 }
 
 * {
@@ -562,5 +574,567 @@ a:focus-visible {
 @media (max-width: 760px) {
   .notebook__layout {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Portfolio workbench preview (portfolio-preview-1) — presentation only.
+   All functional selectors (.scan__status, .app__note, .app__meta, .device-row,
+   toolbar buttons, notebook classes) are untouched above; what follows only
+   groups, spaces and re-presents them. Restrained gold is reserved for the
+   preview identity and the review signal — never for body text. */
+
+.workbench {
+  max-width: 1080px;
+  background: var(--ui-bg);
+  color: var(--ui-ink);
+  border-radius: var(--ui-radius);
+}
+
+.workbench__masthead {
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-top: 3px solid var(--ui-gold);
+  border-radius: var(--ui-radius);
+  padding: 1.25rem 1.5rem;
+}
+
+.workbench__masthead-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 0.5rem;
+}
+
+.workbench__masthead .app__eyebrow {
+  margin: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  color: var(--ui-muted);
+}
+
+.workbench__preview-pill {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--ui-gold);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ui-ink);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.workbench__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ui-gold);
+  display: inline-block;
+}
+
+.workbench__version {
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 0.8rem;
+  color: var(--ui-muted);
+}
+
+.workbench__masthead h1 {
+  margin: 0 0 0.25rem;
+  font-size: 1.9rem;
+  letter-spacing: -0.02em;
+  color: var(--ui-ink);
+}
+
+.workbench__preview-note,
+.workbench__local-note {
+  margin: 0.5rem 0 0;
+  color: var(--ui-muted);
+  font-size: 0.92rem;
+  max-width: 70ch;
+}
+
+.workbench__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.workbench__group {
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  padding: 1.1rem 1.25rem;
+  min-width: 0;
+}
+
+.workbench__group-head h2,
+.workbench__group-head h3 {
+  margin: 0;
+}
+
+.workbench__group-head h2 {
+  font-size: 1.05rem;
+  color: var(--ui-ink);
+}
+
+.workbench__group-sub {
+  margin: 0.25rem 0 0.75rem;
+  color: var(--ui-muted);
+  font-size: 0.9rem;
+  max-width: 60ch;
+}
+
+.workbench__group .app__panel {
+  background: transparent;
+  border: none;
+  border-left: none;
+  border-radius: 0;
+  padding: 0;
+}
+
+.workbench__export-note {
+  margin-top: 1rem;
+  border-top: 1px solid var(--ui-border);
+  padding-top: 0.75rem;
+}
+
+.workbench__export-note h3 {
+  margin: 0 0 0.25rem;
+  font-size: 0.95rem;
+  color: var(--ui-ink);
+}
+
+.workbench__export-note p {
+  margin: 0;
+  color: var(--ui-muted);
+  font-size: 0.9rem;
+  max-width: 65ch;
+}
+
+.workbench__evidence {
+  min-width: 0;
+}
+
+.workbench__empty-hint {
+  margin: 0.5rem 0 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px dashed var(--ui-border);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ui-muted);
+  font-size: 0.92rem;
+  max-width: 75ch;
+}
+
+/* Compact stats keep the exact region/labels; review keeps a gold signal. */
+.workbench__evidence .stats__item {
+  min-width: 0;
+}
+
+.workbench__evidence .stats__item:nth-child(2) {
+  border-top: 2px solid var(--ui-gold);
+}
+
+/* Evidence table containment: the panel scrolls, the page never grows sideways. */
+.workbench__evidence .app__table-wrap {
+  overflow: auto;
+  max-width: 100%;
+  border: 1px solid var(--ui-border);
+  border-radius: 9px;
+  /* Subtle inner-scroll hint: thin scrollbar keeps the affordance visible
+     without changing table/selection/filter semantics or layout. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--dl-border) transparent;
+}
+
+.workbench__evidence .app__table {
+  min-width: 640px;
+}
+
+.workbench__evidence thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+/* Form controls stay inside their boxes at 320/390/300px widths. */
+.workbench__group .input,
+.workbench__group select,
+.workbench__group textarea,
+.filters .input {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.filters .field {
+  min-width: 0;
+}
+
+/* Visible keyboard focus keeps the accent ring on both schemes. */
+.workbench :is(button, input, select, textarea, a):focus-visible {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 3px;
+}
+
+/* Light scheme: every legacy --dl-* functional token honors the light scheme.
+   Dark :root values stay exact (Task 13 dark AA pairs keep proving the shipped
+   pairs); this block redefines each --dl-* token to a light value with a
+   light-tested AA pair, plus light overrides for every hardcoded dark fill
+   (stats/notebook/detail/placeholder/hover). Result: no dark-islands-on-white;
+   body/gutters, buttons/hover, inputs, table headers, muted/error/badge/warn
+   text and stats/details all render light with AA >= 4.5:1. No stored
+   preference. */
+@media (prefers-color-scheme: light) {
+  :root {
+    --ui-bg: #f2f5fa;
+    --ui-surface: #ffffff;
+    --ui-ink: #1d2b44;
+    --ui-muted: #4d617e;
+    --ui-accent: #204fb0;
+    --ui-border: #ccd8e9;
+    --ui-gold: #8a6d1f;
+    --ui-panel: #ffffff;
+    /* Legacy functional tokens — light equivalents (AA-checked, see
+       tests/styles-a11y.test.ts light table). */
+    --dl-bg: #f2f5fa;
+    --dl-panel: #ffffff;
+    --dl-border: #ccd8e9;
+    --dl-text: #1d2b44;
+    --dl-muted: #4d617e;
+    --dl-accent: #204fb0;
+    --dl-blue: #204fb0;
+    --dl-th-bg: #e3eaf5;
+    --dl-button-bg: #ffffff;
+    --dl-badge-bg: #e6eefb;
+    --dl-badge-border: #9db8dd;
+    --dl-badge-text: #204fb0;
+    --dl-warn-bg: #fdf0d0;
+    --dl-warn-border: #a68a2e;
+    --dl-warn-text: #5c4a0a;
+    --dl-error-text: #a4262c;
+    --dl-input-bg: #ffffff;
+  }
+
+  .workbench__preview-pill {
+    color: var(--ui-ink);
+  }
+
+  .workbench__version {
+    color: var(--ui-muted);
+  }
+
+  /* Table header: explicit readable text in both schemes (dark: light text on
+     dark fill; light: dark text on light fill). */
+  .app__table th {
+    color: var(--dl-text);
+  }
+
+  /* Secondary button chrome: light border + light hover keep the blue accent. */
+  .button {
+    border-color: #9db1cc;
+  }
+
+  .button:hover:not(:disabled) {
+    background: #dbe5f3;
+    border-color: var(--dl-accent);
+  }
+
+  /* Primary keeps white-on-blue (AA in both schemes); no override needed. */
+
+  .input::placeholder {
+    color: #4d617e;
+  }
+
+  /* Hardcoded dark fills become light cards/details. */
+  .stats__item {
+    background: #ffffff;
+  }
+
+  .stats__value {
+    color: #1d2b44;
+  }
+
+  .notebook__detail {
+    background: #ffffff;
+  }
+
+  .device-detail td {
+    background: #eef2f9;
+  }
+
+  .notebook__device[aria-pressed="true"] {
+    background: var(--dl-th-bg);
+  }
+}
+
+/* Narrow workbench: stack groups, stats and notebook; keep controls reachable. */
+@media (max-width: 900px) {
+  .workbench__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .workbench {
+    border-radius: 0;
+  }
+
+  .workbench__masthead {
+    padding: 1rem;
+  }
+
+  .workbench__masthead h1 {
+    font-size: 1.5rem;
+  }
+
+  .workbench__group {
+    padding: 0.9rem 1rem;
+  }
+
+  .workbench__evidence .app__table {
+    min-width: 560px;
+  }
+
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .field--search {
+    flex-basis: auto;
+  }
+}
+
+/* 300px font-width proxy: single column, no sideways page growth. */
+@media (max-width: 340px) {
+  .app {
+    padding: 20px 12px;
+  }
+
+  .workbench__masthead-top {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .workbench__preview-pill {
+    white-space: normal;
+    max-width: 100%;
+  }
+
+  .workbench__masthead,
+  .workbench__group,
+  .workbench__evidence,
+  .app__panel {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .app__meta,
+  .workbench__preview-note,
+  .workbench__local-note,
+  .workbench__group-sub,
+  .workbench__export-note p,
+  .workbench__empty-hint {
+    overflow-wrap: anywhere;
+    max-width: 100%;
+  }
+
+  .toolbar,
+  .pager,
+  .viewnav,
+  .scan__buttons {
+    max-width: 100%;
+  }
+
+  .stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Print: masthead compact, evidence readable on white, no clipped table. */
+@media print {
+  .workbench {
+    max-width: none;
+    background: #ffffff;
+    color: #1d2b44;
+  }
+
+  .workbench__masthead,
+  .workbench__group,
+  .workbench__evidence,
+  .app__panel {
+    background: #ffffff;
+    border-color: #ccd8e9;
+    break-inside: avoid;
+  }
+
+  .workbench__preview-note,
+  .workbench__group-sub,
+  .workbench__export-note p,
+  .app__note,
+  .scan__status,
+  .app__meta {
+    color: #33415c;
+  }
+
+  /* Print headings/identity must be dark on white (they use --ui-ink/--ui-muted
+     explicitly, which are light text outside the light scheme). */
+  .workbench__masthead h1,
+  .workbench__group-head h2,
+  .workbench__group-head h3,
+  .workbench__export-note h3,
+  .workbench__preview-pill {
+    color: #1d2b44;
+  }
+
+  .workbench__masthead .app__eyebrow,
+  .workbench__version,
+  .workbench__local-note {
+    color: #33415c;
+  }
+
+  /* Print secondary text must be dark on white (outside the light scheme the
+     legacy --dl-muted token is pale). Table header needs an explicit light
+     pair — otherwise it inherits dark workbench text on the dark header fill. */
+  .app__tagline,
+  .app__footer,
+  .field__label,
+  .app__sub,
+  .muted,
+  .stats__label,
+  .app__empty,
+  .evidence dt,
+  .pager__status,
+  .scan__code,
+  .notebook__device-meta,
+  .viewnav__label {
+    color: #33415c;
+  }
+
+  .app__table th {
+    background: #e3eaf5;
+    color: #1d2b44;
+  }
+
+  .viewnav,
+  .scan__buttons,
+  .toolbar,
+  .pager {
+    display: none;
+  }
+
+  /* Print paper-safety: hide the filter toolbar and every interactive
+     control (input/select/textarea/button) while keeping evidence
+     (table/stats/badges/notes) visible. Backgrounds-off safe: paper
+     colors are white/near-white with dark text, never dependent on
+     print-backgrounds. */
+  .filters,
+  input,
+  select,
+  textarea,
+  button {
+    display: none !important;
+  }
+
+  /* Stats: paper-white card + dark value/label (AA printed and on white). */
+  .stats__item {
+    background: #ffffff;
+    border-color: #ccd8e9;
+  }
+
+  .stats__value {
+    color: #1d2b44;
+  }
+
+  /* Badges/chips: light fills + dark text (AA printed and on white). */
+  .chip,
+  .badge {
+    background: #e6eefb;
+    border-color: #9db8dd;
+    color: #204fb0;
+  }
+
+  .badge--warn {
+    background: #fdf0d0;
+    border-color: #a68a2e;
+    color: #5c4a0a;
+  }
+
+  /* Evidence / detail / notebook / table: dark-on-light paper pairs. */
+  .evidence dd {
+    color: #1d2b44;
+  }
+
+  .device-detail td {
+    background: #ffffff;
+    color: #1d2b44;
+    border-color: #ccd8e9;
+  }
+
+  .notebook__detail {
+    background: #ffffff;
+    color: #1d2b44;
+    border-color: #ccd8e9;
+  }
+
+  .notebook__device {
+    background: #ffffff;
+    color: #1d2b44;
+    border-color: #ccd8e9;
+  }
+
+  .notebook__device-name {
+    color: #1d2b44;
+  }
+
+  .notebook__device[aria-pressed="true"] {
+    background: #e3eaf5;
+    border-color: #9db8dd;
+  }
+
+  .notebook__confirm {
+    background: #fdf0d0;
+    border-color: #a68a2e;
+  }
+
+  .notebook__confirm .app__note {
+    color: #5c4a0a;
+  }
+
+  .notes {
+    color: #1d2b44;
+  }
+
+  .app__table td {
+    background: #ffffff;
+    color: #1d2b44;
+    border-color: #ccd8e9;
+  }
+
+  .app__table tr:last-child td {
+    border-bottom: none;
+  }
+
+  .app__note--error {
+    color: #a4262c;
+  }
+
+  .workbench__evidence .app__table-wrap {
+    overflow: visible;
+    border: none;
+  }
+
+  .workbench__evidence .app__table {
+    min-width: 0;
+    font-size: 11px;
   }
 }

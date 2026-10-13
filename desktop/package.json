@@ -1,7 +1,7 @@
 {
   "name": "driverlens-desktop",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0-preview.1",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:native": "wdio run e2e/wdio.conf.ts",
+    "build:private": "node scripts/build-private.cjs build",
     "tauri": "tauri"
   },
   "dependencies": {

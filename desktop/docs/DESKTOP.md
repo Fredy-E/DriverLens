@@ -1,5 +1,18 @@
 # DriverLens desktop edition
 
+> **Desktop UI preview 0.3.0-preview.1** (2026-10-12): refreshed navy/blue
+> workbench with the same ten native commands, collector, IPC/CSP/permission
+> boundary and report/notebook contracts. The workbench honors the OS color
+> scheme: dark is the base, and every legacy component re-renders light under
+> `prefers-color-scheme: light` with AA pairs (see `src/styles.css` light block
+> + `tests/styles-a11y.test.ts` light table). **Native proof completed
+> 2026-10-13:** ARM64 executable, portable ZIP and NSIS installer built;
+> 106 Rust / 233 frontend / 7 bundle checks / all 15 real native E2E cases
+> passed. See [UI-PREVIEW-VERIFICATION.md](UI-PREVIEW-VERIFICATION.md) for
+> exact artifact hashes, a current native capture and limitations. The
+> remaining dated v0.2.0 verification/captures below are preserved as history;
+> their old byte counts and candidate labels do not describe this preview.
+
 Status: **in development** (record date 2026-10-08). This document covers the desktop edition — the Tauri application under `desktop/`. The browser edition at the repository root is unchanged and keeps its own instructions in the root README.
 
 ## The two editions

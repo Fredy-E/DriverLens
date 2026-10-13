@@ -109,9 +109,13 @@ jobs:
         shell: pwsh
         run: node desktop/tests/bundle.test.cjs
 
-      - name: Build release exe (aarch64-pc-windows-msvc, --no-bundle)
+      # Privacy-remapped development build (desktop/scripts/build-private.cjs
+      # via `npm run build:private`): identical Tauri CLI args to the raw
+      # build, plus compiler `--remap-path-prefix` entries so the exe embeds
+      # no local registry/source paths. See desktop/docs/BUILD-PRIVACY.md.
+      - name: Build release exe via build:private (aarch64-pc-windows-msvc, --no-bundle)
         shell: pwsh
-        run: npm --prefix desktop run tauri -- build --target aarch64-pc-windows-msvc --no-bundle
+        run: npm --prefix desktop run build:private -- --target aarch64-pc-windows-msvc --no-bundle
 
       # Runs AFTER the release build: proves the CI-built exe is a native
       # ARM64 PE (0xAA64) and that the bundled collector resource is
@@ -189,6 +193,14 @@ jobs:
           [System.IO.File]::WriteAllText($checkPath, $check)
           node $checkPath
 
+      # Runs AFTER the PE/resources check on the SAME release exe: fails the
+      # job when the executable bytes still carry machine-local paths
+      # (UTF-8 or UTF-16LE) or E2E-only markers. Scans the extracted exe,
+      # never a compressed installer (desktop/docs/BUILD-PRIVACY.md).
+      - name: Production executable privacy scan (no local paths, no E2E markers)
+        shell: pwsh
+        run: node desktop/scripts/verify-binary-privacy.cjs desktop/src-tauri/target/aarch64-pc-windows-msvc/release/driverlens-desktop.exe
+
       # Browser-edition invariants: the same three suites and step names as
       # .github/workflows/verify.yml (which stays unchanged). They run here
       # too so a desktop-only change cannot bypass them.
@@ -260,11 +272,14 @@ jobs:
       # src-tauri/target-e2e, so the verified release artifact is never
       # overwritten. The doc's `CARGO_TARGET_DIR="$PWD/src-tauri/target-e2e"`
       # (run from desktop/) is expressed here as an absolute step env.
-      - name: Build E2E binary (--features wdio-e2e; CARGO_TARGET_DIR=src-tauri/target-e2e)
+      # Privacy-remapped like production (desktop/docs/BUILD-PRIVACY.md);
+      # the production-only scanner does NOT run on this E2E binary, which
+      # legitimately contains E2E markers.
+      - name: Build E2E binary via build:private (--features wdio-e2e; CARGO_TARGET_DIR=src-tauri/target-e2e)
         shell: pwsh
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}/desktop/src-tauri/target-e2e
-        run: npm --prefix desktop run tauri -- build --target aarch64-pc-windows-msvc --no-bundle --features wdio-e2e
+        run: npm --prefix desktop run build:private -- --target aarch64-pc-windows-msvc --no-bundle --features wdio-e2e
 
       - name: Native E2E suite (npm run test:native)
         shell: pwsh

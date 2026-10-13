@@ -1,7 +1,7 @@
 /**
- * DriverLens desktop — application shell (Tasks 9 + 10).
+ * DriverLens desktop — application shell (Tasks 9 + 10, portfolio preview).
  *
- * Real workflows now:
+ * Real workflows (unchanged behavior, new workbench presentation):
  * - ScanControls drives the native scan lifecycle (start/poll/cancel, all
  *   five states, error guidance, Busy handling). When a scan completes, its
  *   report is fetched with the read-only `get_report` command and flows
@@ -18,6 +18,13 @@
  * filtered export (ids), so "export filtered" can never disagree with what
  * the table shows. All device strings are rendered as text nodes (React
  * escaping); nothing is ever interpreted as markup.
+ *
+ * Preview shell: `data-ui-revision="portfolio-preview-1"` marks the
+ * principal shell for archive/preview identification. The masthead carries
+ * the Desktop UI preview identity with its version; workflow groups use
+ * explicit headings so scan / library / export / evidence stay discoverable.
+ * The view switcher stays AFTER the scan panels in DOM order to preserve the
+ * keyboard tab-order contract (tests/a11y-keyboard.test.tsx).
  */
 import { useCallback, useMemo, useState } from "react";
 
@@ -30,6 +37,9 @@ import { DEFAULT_QUERY, filterDevices, type DeviceQuery } from "./lib/filters";
 import { formatCount } from "./lib/format";
 import { idsForExport } from "./lib/selection";
 import { reportStats, type ReportStats } from "./lib/stats";
+
+/** Preview metadata shown in the masthead (mirrors package/tauri/cargo). */
+export const PREVIEW_VERSION = "0.3.0-preview.1";
 
 export default function App() {
   const [report, setReport] = useState<Report | null>(null);
@@ -62,35 +72,88 @@ export default function App() {
     : "No report loaded.";
 
   return (
-    <main className="app" aria-labelledby="app-title">
-      <header className="app__header">
-        <p className="app__eyebrow">FREDY-E / SYSTEM TOOLS</p>
-        <h1 id="app-title">
-          DriverLens <span className="chip">Prototype</span>
-        </h1>
+    <main className="app workbench" data-ui-revision="portfolio-preview-1" aria-labelledby="app-title">
+      <header className="app__header workbench__masthead">
+        <div className="workbench__masthead-top">
+          <p className="app__eyebrow">FREDY-E / SYSTEM TOOLS</p>
+          <p className="workbench__preview-pill">
+            <span aria-hidden="true" className="workbench__dot" />
+            Desktop UI preview{" "}
+            <span className="workbench__version">{PREVIEW_VERSION}</span>
+          </p>
+        </div>
+        <h1 id="app-title">DriverLens</h1>
         <p className="app__tagline">
           Understand the devices and drivers behind this Windows machine.
+        </p>
+        <p className="workbench__preview-note">
+          A refreshed local workbench for the shipped desktop inventory — scan,
+          library, export, evidence and notebook stay fully working, all on
+          this PC.
         </p>
       </header>
 
       {view === "scan" ? (
         <>
-          <ScanControls onScanReport={handleReportLoaded} />
+          <div className="workbench__grid">
+            <section
+              className="workbench__group"
+              aria-labelledby="scan-workspace-title"
+            >
+              <div className="workbench__group-head">
+                <h2 id="scan-workspace-title">Scan workspace</h2>
+                <p className="workbench__group-sub">
+                  Start a local scan and follow its status. Scans are
+                  manual-only and never start on their own.
+                </p>
+              </div>
+              <ScanControls onScanReport={handleReportLoaded} />
+            </section>
 
-          <ReportActions
-            report={report}
-            filteredIds={filteredIds}
-            matchedCount={filtered.length}
-            onReportLoaded={handleReportLoaded}
-          />
+            <section
+              className="workbench__group"
+              aria-labelledby="library-title"
+            >
+              <div className="workbench__group-head">
+                <h2 id="library-title">Report library</h2>
+                <p className="workbench__group-sub">
+                  Open a saved report or explore the fictional sample. Nothing
+                  leaves this machine.
+                </p>
+              </div>
+              <ReportActions
+                report={report}
+                filteredIds={filteredIds}
+                matchedCount={filtered.length}
+                onReportLoaded={handleReportLoaded}
+              />
+              <div className="workbench__export-note">
+                <h3>Export</h3>
+                <p>
+                  Exports write only where you choose in the native save
+                  dialog — the full report, exactly the filtered rows, or one
+                  self-contained HTML file (redacted by default).
+                </p>
+              </div>
+            </section>
+          </div>
 
-          <section className="app__panel" aria-labelledby="devices-title">
+          <section
+            className="app__panel workbench__evidence"
+            aria-labelledby="devices-title"
+          >
             <div className="app__panel-head">
               <h2 id="devices-title">Devices</h2>
               {report?.sample ? <span className="chip">Fictional sample data</span> : null}
             </div>
             <StatsRow stats={stats} />
             <p className="app__meta">{meta}</p>
+            {report === null ? (
+              <p className="workbench__empty-hint">
+                Your workbench is empty. Open a saved report or load the
+                sample to explore devices, evidence and exports safely.
+              </p>
+            ) : null}
             <DeviceTable
               devices={filtered}
               query={query}

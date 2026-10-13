@@ -127,6 +127,117 @@ describe("styles.css — WCAG contrast for the token pairs in use", () => {
   });
 });
 
+/**
+ * Light-scheme rendered semantic pairs (review fix §1).
+ *
+ * Proves every legacy --dl-* functional component honors the light scheme as
+ * RENDERED pairs — body/gutters, buttons/hover, inputs, table headers,
+ * muted/error/badge/warn text, stats/details — not token presence alone.
+ * Dark :root values above stay exact; these expectations read the light media
+ * block's redefined tokens + hardcoded light fills and hold the same AA floor.
+ */
+function lightToken(name: string): string {
+  const light = cssBlock("@media (prefers-color-scheme: light)");
+  const match = new RegExp(`${name}:\\s*(#[0-9a-fA-F]{6})\\s*;`).exec(light);
+  expect(match, `light token ${name} must be redefined in the light scheme block`).not.toBeNull();
+  return match![1].toLowerCase();
+}
+
+const LIGHT_PAIRS: Pair[] = [
+  { label: "light body text on page background", fg: "#1d2b44", bg: "#f2f5fa", min: 4.5 },
+  { label: "light panel text on panel", fg: "#1d2b44", bg: "#ffffff", min: 4.5 },
+  { label: "light muted text on panel", fg: "#4d617e", bg: "#ffffff", min: 4.5 },
+  { label: "light muted text on page background", fg: "#4d617e", bg: "#f2f5fa", min: 4.5 },
+  { label: "light muted text on stats card", fg: "#4d617e", bg: "#ffffff", min: 4.5 },
+  { label: "light muted text on table header", fg: "#4d617e", bg: "#e3eaf5", min: 4.5 },
+  { label: "light muted text on expanded evidence row", fg: "#4d617e", bg: "#eef2f9", min: 4.5 },
+  { label: "light accent (evidence toggle) on panel", fg: "#204fb0", bg: "#ffffff", min: 4.5 },
+  { label: "light badge text on badge fill", fg: "#204fb0", bg: "#e6eefb", min: 4.5 },
+  { label: "light unknown-status badge text (muted) on badge fill", fg: "#4d617e", bg: "#e6eefb", min: 4.5 },
+  { label: "light warning badge text on warning fill", fg: "#5c4a0a", bg: "#fdf0d0", min: 4.5 },
+  { label: "light error status text on panel", fg: "#a4262c", bg: "#ffffff", min: 4.5 },
+  { label: "light error status text on page background", fg: "#a4262c", bg: "#f2f5fa", min: 4.5 },
+  { label: "light primary button label on primary fill", fg: "#ffffff", bg: "#2364d7", min: 4.5 },
+  { label: "light primary button label on primary hover fill", fg: "#ffffff", bg: "#2f70e0", min: 4.5 },
+  { label: "light secondary button label on button fill", fg: "#1d2b44", bg: "#ffffff", min: 4.5 },
+  { label: "light secondary button label on hover fill", fg: "#1d2b44", bg: "#dbe5f3", min: 4.5 },
+  { label: "light input placeholder on input fill", fg: "#4d617e", bg: "#ffffff", min: 4.5 },
+  { label: "light stats value on stats card", fg: "#1d2b44", bg: "#ffffff", min: 4.5 },
+  { label: "light table header text on header fill", fg: "#1d2b44", bg: "#e3eaf5", min: 4.5 },
+];
+
+describe("styles.css — light-scheme rendered semantic pairs (AA, no dark islands)", () => {
+  it("redefines every legacy functional token for light (body/gutters/buttons/inputs/headers/text)", () => {
+    const expected: Record<string, string> = {
+      "--dl-bg": "#f2f5fa",
+      "--dl-panel": "#ffffff",
+      "--dl-border": "#ccd8e9",
+      "--dl-text": "#1d2b44",
+      "--dl-muted": "#4d617e",
+      "--dl-accent": "#204fb0",
+      "--dl-th-bg": "#e3eaf5",
+      "--dl-button-bg": "#ffffff",
+      "--dl-badge-bg": "#e6eefb",
+      "--dl-badge-border": "#9db8dd",
+      "--dl-badge-text": "#204fb0",
+      "--dl-warn-bg": "#fdf0d0",
+      "--dl-warn-border": "#a68a2e",
+      "--dl-warn-text": "#5c4a0a",
+      "--dl-error-text": "#a4262c",
+      "--dl-input-bg": "#ffffff",
+    };
+    for (const [name, value] of Object.entries(expected)) {
+      expect(lightToken(name), `light ${name}`).toBe(value);
+    }
+    // Body gutters must actually be light (luminance gate mirrors the parent sandbox).
+    expect(relativeLuminance(lightToken("--dl-bg"))).toBeGreaterThan(0.5);
+  });
+
+  it("holds AA for every light rendered pair (semantic, not token presence)", () => {
+    const light = cssBlock("@media (prefers-color-scheme: light)");
+    // Literal light fills must still exist in the light block (no silent drift).
+    for (const literal of [
+      "#f2f5fa",
+      "#ffffff",
+      "#e3eaf5",
+      "#eef2f9",
+      "#e6eefb",
+      "#fdf0d0",
+      "#dbe5f3",
+      "#1d2b44",
+      "#4d617e",
+      "#204fb0",
+      "#5c4a0a",
+      "#a4262c",
+    ]) {
+      expect(light.toLowerCase(), `light block must still paint ${literal}`).toContain(literal);
+    }
+    const failures: string[] = [];
+    const rows: string[] = [];
+    for (const pair of LIGHT_PAIRS) {
+      const ratio = contrast(pair.fg, pair.bg);
+      rows.push(`${ratio.toFixed(2)}:1  ${pair.label} (${pair.fg} on ${pair.bg}, AA min ${pair.min})`);
+      if (ratio < pair.min) failures.push(`${pair.label}: ${ratio.toFixed(2)}:1 (needs ${pair.min}:1)`);
+    }
+    console.log("WCAG light contrast table (rendered semantic pairs):\n" + rows.join("\n"));
+    expect(failures, `light pairs below AA:\n${failures.join("\n")}`).toEqual([]);
+  });
+
+  it("paints every hardcoded dark fill light (stats/detail/placeholder/hover/header text)", () => {
+    const light = cssBlock("@media (prefers-color-scheme: light)");
+    // Each legacy component that paints a hardcoded dark hex in the base sheet
+    // must have an explicit light override — otherwise it stays a dark island.
+    expect(light).toMatch(/\.stats__item\s*\{[^}]*background:\s*#ffffff/);
+    expect(light).toMatch(/\.stats__value\s*\{[^}]*color:\s*#1d2b44/);
+    expect(light).toMatch(/\.notebook__detail\s*\{[^}]*background:\s*#ffffff/);
+    expect(light).toMatch(/\.device-detail\s+td\s*\{[^}]*background:\s*#eef2f9/);
+    expect(light).toMatch(/\.input::placeholder\s*\{[^}]*color:\s*#4d617e/);
+    expect(light).toMatch(/\.button:hover[^{]*\{[^}]*background:\s*#dbe5f3/);
+    expect(light).toMatch(/\.app__table\s+th\s*\{[^}]*color:\s*var\(--dl-text\)/);
+    expect(light).toMatch(/\.button\s*\{[^}]*border-color:\s*#9db1cc/);
+  });
+});
+
 describe("styles.css — the navy/cyan DriverLens palette stays locked", () => {
   it("keeps the exact dark-navy tokens (drift into another tool's blue fails here)", () => {
     expect(token("--dl-bg")).toBe("#080e19");

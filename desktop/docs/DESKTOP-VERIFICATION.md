@@ -1,5 +1,11 @@
 # DESKTOP-VERIFICATION.md — Task 14: ARM64 release, NSIS installer, full battery
 
+> **Historical v0.1.0/v0.2.0 record.** The dated hashes, test counts and
+> candidate labels below refer to those older builds. Current
+> `0.3.0-preview.1` evidence is in
+> [UI-PREVIEW-VERIFICATION.md](UI-PREVIEW-VERIFICATION.md). The clean-machine
+> matrix remains unverified; a new build does not upgrade any matrix row.
+
 **Run:** 2026-10-08 21:01–21:10 UTC (local 2026-10-09 00:01–00:10, Asia/Beirut).
 **Machine:** Windows 11 ARM64, the ordinary build machine (user session) — **not a clean
 machine**; see §8 for what that means for the Task-15 matrix.

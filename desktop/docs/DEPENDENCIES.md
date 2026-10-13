@@ -1,5 +1,11 @@
 # DriverLens desktop — pinned dependencies (Task 5)
 
+> **Dated dependency-resolution history.** The scaffold counts, CSP stage and
+> generation dates below describe those earlier tasks, not the current build.
+> The `0.3.0-preview.1` UI refresh introduces no new runtime dependency;
+> current lockfile comparison and native evidence are recorded in
+> [UI-PREVIEW-VERIFICATION.md](UI-PREVIEW-VERIFICATION.md).
+
 **Record date:** 2026-10-08.
 **Environment used for resolution + verification:** Windows 11 (ARM64), Node.js **26.7.0**, npm **11.19.0**, rustc/cargo **1.98.0** (`aarch64-pc-windows-msvc`).
 **Scope:** the `desktop/` scaffold only — React + TypeScript + Vite frontend and the Tauri 2 Rust shell.

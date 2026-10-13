@@ -381,7 +381,9 @@ after(async function () {
 describe("DriverLens native window (real IPC, scripted collectors)", () => {
   it("startup: app chrome renders and the report panel starts empty", async () => {
     await expect($("h1")).toHaveText(expect.stringContaining("DriverLens"));
-    await expect($("h1 .chip")).toHaveText("Prototype");
+    await expect($("main[data-ui-revision='portfolio-preview-1']")).toBeDisplayed();
+    await expect($(".workbench__preview-pill")).toBeDisplayed();
+    await expect($(".workbench__version")).toHaveText("0.3.0-preview.1");
     await expect($(META)).toHaveText("No report loaded.");
     await expect($(SCAN_STATUS)).toHaveText(expect.stringContaining("Ready."));
     await expect($(".app__empty")).toHaveText(
@@ -595,7 +597,7 @@ describe("DriverLens native window (real IPC, scripted collectors)", () => {
     expect(fs.existsSync(HTML_REPORT_PATH)).toBe(true);
     const redacted = fs.readFileSync(HTML_REPORT_PATH, "utf8");
     expect(redacted).toContain("<title>DriverLens report</title>");
-    expect(redacted).toContain("DriverLens 0.2.0");
+    expect(redacted).toContain("DriverLens 0.3.0-preview.1");
     expect(redacted).toContain("What is redacted");
     expect(redacted).toContain("D01");
     expect(redacted).toContain("Scripted Synthetic Adapter");

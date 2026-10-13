@@ -78,9 +78,16 @@ npm ci
 # Launcher invariants + server integration tests (spawns real servers; synthetic collectors only)
 npm run test:launcher
 npm run test:integration
+npm run test:saved-report
+
+# UI preview regression (static shell checks, load-bearing portfolio-preview-1 workbench)
+npm run test:ui
 
 # Browser test: file:// auto-connect + synthetic report import; saves docs/images/app.png
 npm run test:browser
+
+# Full default (documented entrypoint, also run by CI):
+npm run verify
 ```
 
 The integration tests spawn the real server (production entrypoint, plus a harness with an injected synthetic collector) and exercise the exact loopback `Host` / `Origin` / `X-DriverLens-Scan` guards, the fixed static allowlist, path-traversal resistance, malformed request-target handling (a 400 that never crashes the helper), foreign absolute request targets, `/ping` readiness, and the failed/pending collector paths over real HTTP. The browser test opens `index.html` from disk, watches it auto-connect to the helper (whether it comes up later or is already running), proves the page never adopts an unrelated service squatting on port 8781, and imports a synthetic report — it uses system Chrome/Edge, or run `npx playwright install chromium` first. No test ever runs a real device inventory. CI runs the fixture checks, launcher invariants, integration tests, and the browser test on a Windows ARM64 runner (badge above). See [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) for exactly what is and is not verified — x86/x64 hardware, for example, is not.
@@ -94,6 +101,15 @@ Report comparisons, richer package evidence, and an installable desktop shell af
 ---
 
 ## Desktop edition (ARM64)
+
+**UI preview `0.3.0-preview.1` — locally built and verified 2026-10-13.**
+The refreshed desktop workbench has ARM64 portable EXE/ZIP and NSIS installer
+candidates, with 106 Rust tests, 233 frontend tests, 7 bundle checks and all
+15 native WebView/IPC cases passing (synthetic collectors only). Current hashes,
+startup capture, prerequisites and unverified installation/hardware scope:
+[UI preview verification](desktop/docs/UI-PREVIEW-VERIFICATION.md).
+The separately published stable releases and dated verification below remain
+unchanged; this preview does not replace them or certify hardware.
 
 <p align="center">
   <img src="desktop/docs/images/desktop-card.svg" alt="DriverLens — Desktop (ARM64): a read-only Windows device and driver inventory; Tauri 2 + React + Rust native ARM64 app; in development" width="100%">

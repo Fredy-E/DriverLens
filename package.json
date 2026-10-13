@@ -1,6 +1,6 @@
 {
   "name": "driverlens",
-  "version": "0.1.0",
+  "version": "0.2.0-preview.1",
   "private": true,
   "description": "DriverLens - read-only Windows device and driver inventory. Dev manifest for the local checks (dev-only Playwright for the browser test).",
   "license": "MIT",
@@ -12,7 +12,9 @@
     "test:launcher": "node tests/launcher.test.cjs",
     "test:integration": "node tests/integration.test.cjs",
     "test:saved-report": "node tests/saved-report.test.cjs",
-    "test:browser": "node tests/browser.test.cjs"
+    "test:browser": "node tests/browser.test.cjs",
+    "test:ui": "node tests/ui-preview.test.cjs",
+    "verify": "npm run test:launcher && npm run test:integration && npm run test:saved-report && npm run test:browser && node tests/ui-preview.test.cjs"
   },
   "devDependencies": {
     "playwright": "1.63.0"

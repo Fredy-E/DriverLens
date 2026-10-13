@@ -57,7 +57,7 @@ is covered by Rust unit tests, not by this suite.
 From `desktop/` (bash / MSYS shown; PowerShell equivalent below):
 
 ```bash
-export CARGO_TARGET_DIR="$PWD/src-tauri/target-e2e"
+export CARGO_TARGET_DIR="$(pwd -W)/src-tauri/target-e2e"  # native Windows path in Git Bash
 npm run tauri -- build --target aarch64-pc-windows-msvc --no-bundle --features wdio-e2e
 ```
 
@@ -129,7 +129,17 @@ scripted scan records devices with their driver versions → note save +
 in-session persistence (real commands; isolated store under
 `e2e/.run/notebook`); 15. console stayed clean.
 
-## Evidence
+## Current UI preview verification
+
+`0.3.0-preview.1` completed all 15 cases on 2026-10-13, with no skipped
+cases or app console errors. An initial run was 14/15: the startup check
+expected the superseded `h1 .chip` Prototype badge. The repaired check
+asserts the reviewed workbench revision and visible preview/version while
+retaining all empty-state/readiness checks; the full rerun passed.
+Application code and the production executable were unchanged by this
+assertion-only fix. See [UI-PREVIEW-VERIFICATION.md](UI-PREVIEW-VERIFICATION.md).
+
+## Historical v0.2.0 evidence
 
 - `driverlens-extensions/evidence/sa-pub-wdio-e2e-build.log` — the v0.2.0 feature build.
 - `driverlens-extensions/evidence/sa-pub-wdio-native.log` — full WDIO run output + exit.

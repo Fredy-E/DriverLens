@@ -1,9 +1,91 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DriverLens</title><link rel="stylesheet" href="style.css"></head><body><main>
-<header><div><p class="eyebrow">FREDY-E / SYSTEM TOOLS</p><h1>DriverLens<span class="chip">Prototype</span></h1><p class="subtitle">Understand the devices and drivers behind your Windows machine.</p></div><span class="icon">DL</span></header>
-<section class="toolbar"><button id="scan" class="primary">Scan this PC</button><label class="button">Open report<input type="file" id="file" accept=".json,application/json" hidden></label><button id="demo">Load sample</button><button id="export" disabled>Export filtered report</button></section>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="DriverLens browser concept: read-only Windows device and driver evidence workbench.">
+<title>DriverLens</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main data-ui-revision="portfolio-preview-1" class="workbench">
+<header class="masthead">
+<div class="masthead-text">
+<p class="eyebrow">Fredy-E / System tools</p>
+<h1>DriverLens <span class="chip">Browser concept</span></h1>
+<p class="subtitle">Read-only Windows device and driver evidence workbench. Preview fictional samples or saved reports with no installation; live collection stays optional via the local helper.</p>
+</div>
+<span class="icon" aria-hidden="true">DL</span>
+</header>
+<p id="prototype-notice" class="prototype" role="note">Experimental concept prototype — idea exploration only. Not a finished product and not production-ready. Browser edition only — the separately published desktop releases are unchanged.</p>
 <p id="message" class="notice" role="status">Ready. Live scans require the local Node server. You can open an existing JSON report here.</p>
-<section id="summary" class="stats"><div><b id="total">0</b><span>Devices</span></div><div><b id="review">0</b><span>Need review</span></div><div><b id="known">0</b><span>Binary architecture known</span></div><div><b id="system">—</b><span>OS architecture</span></div></section>
-<section class="filters"><input id="search" type="search" placeholder="Search name, provider, VID/PID, INF…" aria-label="Search devices"><select id="status" aria-label="Review status"><option value="all">All statuses</option><option value="review">Needs review</option><option value="observed">Observed</option></select><select id="architecture" aria-label="Architecture"><option value="all">All architectures</option><option>ARM64</option><option>x64</option><option>x86</option><option>Unknown</option></select><select id="bus" aria-label="Bus"><option value="all">All buses</option><option>USB</option><option>PCI</option><option>ROOT</option><option>ACPI</option></select></section>
-<p class="meta" id="count">No report loaded.</p><section class="table-wrap"><table><thead><tr><th>Device</th><th>Driver</th><th>Architecture evidence</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></section>
-<details class="explain"><summary>How to read the evidence</summary><p>Kernel architecture comes from the binary's PE machine field when its Windows service path can be resolved and read. Package targets come from INF decorations and do not prove which binary is loaded. “Observed” means no checks raised a flag; it does not certify hardware compatibility. Unknown evidence stays unknown.</p><p>Reports stay local. Raw instance IDs are replaced by a digest; names and driver metadata remain in exported reports. This tool does not install, disable, or change drivers.</p></details>
-<footer>DriverLens · Read-only inventory · First version</footer></main><script src="app.js"></script></body></html>
+<section class="actions" aria-label="Report actions">
+<div class="action-group">
+<h2>Collect</h2>
+<p class="group-desc">Optional live inventory on your own PC through the local helper.</p>
+<button id="scan" class="primary" type="button">Scan this PC</button>
+<p class="hint">Needs Node.js 22+, PowerShell 7 and Start-DriverLens.cmd. This page cannot start programs itself.</p>
+</div>
+<div class="action-group">
+<h2>Preview</h2>
+<p class="group-desc">Fictional data or a saved report. No installation needed.</p>
+<div class="btn-row">
+<button id="demo" type="button">Load sample</button>
+<label class="button" for="file">Open report<input type="file" id="file" accept=".json,application/json" hidden></label>
+</div>
+<p class="hint">From disk: choose Open report, then pick sample.json to preview fictional devices.</p>
+</div>
+<div class="action-group">
+<h2>Share</h2>
+<p class="group-desc">Download exactly what the filters below show, with digests kept.</p>
+<button id="export" type="button" disabled>Export filtered report</button>
+<p class="hint">Export enables once a report is loaded.</p>
+</div>
+</section>
+<section class="panel stats-panel" aria-label="Device summary">
+<h2>Summary</h2>
+<div id="summary" class="stats">
+<div class="stat"><b id="total">0</b><span>Devices</span></div>
+<div class="stat"><b id="review">0</b><span>Need review</span></div>
+<div class="stat"><b id="known">0</b><span>Binary architecture known</span></div>
+<div class="stat"><b id="system">—</b><span>OS architecture</span></div>
+</div>
+</section>
+<section class="panel evidence-panel" aria-label="Device evidence">
+<h2>Evidence</h2>
+<div class="filters">
+<div class="field field-search">
+<label for="search">Search</label>
+<input id="search" type="search" placeholder="Search name, provider, VID/PID, INF…" autocomplete="off">
+</div>
+<div class="field">
+<label for="status">Review status</label>
+<select id="status"><option value="all">All statuses</option><option value="review">Needs review</option><option value="observed">Observed</option></select>
+</div>
+<div class="field">
+<label for="architecture">Architecture</label>
+<select id="architecture"><option value="all">All architectures</option><option>ARM64</option><option>x64</option><option>x86</option><option>Unknown</option></select>
+</div>
+<div class="field">
+<label for="bus">Bus</label>
+<select id="bus"><option value="all">All buses</option><option>USB</option><option>PCI</option><option>ROOT</option><option>ACPI</option></select>
+</div>
+</div>
+<p class="meta" id="count">No report loaded.</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th scope="col">Device</th><th scope="col">Driver</th><th scope="col">Architecture evidence</th><th scope="col">Status</th></tr></thead>
+<tbody id="rows"><tr class="empty"><td colspan="4">No report loaded yet. Use Load sample for fictional devices, or Open report to pick a saved JSON report.</td></tr></tbody>
+</table>
+</div>
+</section>
+<details class="explain">
+<summary>How to read the evidence</summary>
+<p>Kernel architecture comes from the binary's PE machine field when its Windows service path can be resolved and read. Package targets come from INF decorations and do not prove which binary is loaded. “Observed” means no checks raised a flag; it does not certify hardware compatibility. Unknown evidence stays unknown.</p>
+<p>Reports stay local. Raw instance IDs are replaced by a digest; names and driver metadata remain in exported reports. This tool does not install, disable, or change drivers.</p>
+</details>
+<footer>DriverLens · Read-only inventory · Browser concept prototype — desktop releases remain separately published.</footer>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

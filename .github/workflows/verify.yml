@@ -57,3 +57,11 @@ jobs:
           DRIVERLENS_BROWSER: chromium
           DRIVERLENS_REQUIRE_BROWSER: '1'
         run: node tests/browser.test.cjs
+
+      - name: UI preview regression (portfolio-preview-1 workbench shell)
+        shell: pwsh
+        run: node tests/ui-preview.test.cjs
+
+      - name: Full default verification (launcher + integration + saved-report + browser + UI)
+        shell: pwsh
+        run: npm run verify
