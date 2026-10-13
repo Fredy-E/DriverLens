@@ -1,0 +1,57 @@
+{
+  "source": "src/adapters/native.ts + src-tauri/src/lib.rs + src-tauri/src/scan.rs + src-tauri/src/notebook.rs + src-tauri/src/commands.rs",
+  "simulated": true,
+  "note": "Faithful synthetic IPC stub for Vite renderer preview-state capture ONLY. Not native IPC/hardware proof. Every renderer screenshot taken with this stub is simulated.",
+  "commands": {
+    "scan_devices": {
+      "args": [],
+      "synthetic": { "state": "running", "generation": 1, "startedMs": 1700000000000 },
+      "comment": "Non-blocking start; returns Running immediately (scan.rs start_scan). Capture never clicks Scan; stub exists so a click would resync instead of throwing."
+    },
+    "get_scan_state": {
+      "args": [],
+      "synthetic": { "state": "idle", "generation": 0 },
+      "comment": "Initial sync (ScanControls mount). Idle/0 repairs the previous 'Could not read the current scan state' capture artifact — the genuine error DOM stays in production code."
+    },
+    "cancel_scan": {
+      "args": [],
+      "synthetic": null,
+      "comment": "Idempotent cancel; resolves void (undefined over IPC becomes null in JSON transport)."
+    },
+    "open_report": {
+      "args": [],
+      "synthetic": null,
+      "comment": "Native open dialog; null = user cancelled (normal, not an error). Capture loads the bundled fictional sample directly, never through this stub."
+    },
+    "export_report": {
+      "args": ["ids?"],
+      "synthetic": null,
+      "comment": "Native save dialog; null = user cancelled. Full export = zero args; filtered = exactly the id list (validated Rust-side)."
+    },
+    "export_html_report": {
+      "args": ["html", "suggestedName"],
+      "synthetic": null,
+      "comment": "Native save dialog for the renderer-built HTML; null = user cancelled. Empty/oversized refused Rust-side before the dialog."
+    },
+    "get_report": {
+      "args": [],
+      "synthetic": null,
+      "comment": "Read-only current-report slot; null = none yet. Sample loads via the bundled JSON validator, not via an invented report here."
+    },
+    "get_notebook": {
+      "args": [],
+      "synthetic": { "devices": [], "updatedAt": 0 },
+      "comment": "Read-only notebook view (camelCase updatedAt); empty = no scan has recorded anything yet."
+    },
+    "save_device_note": {
+      "args": ["key", "text"],
+      "synthetic": { "ok": true },
+      "comment": "Notebook write; key must exist Rust-side (unknown_key), text capped at 4000 chars."
+    },
+    "clear_notebook": {
+      "args": [],
+      "synthetic": { "ok": true },
+      "comment": "Idempotent local-store clear; nothing uploaded."
+    }
+  }
+}
